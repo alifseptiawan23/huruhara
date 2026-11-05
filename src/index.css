@@ -1,0 +1,32 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  user-select: none;
+}
+
+/* ── Layering: Pastikan tabel (nodes) selalu di atas garis & label edge agar tidak ada bocor di dalam tabel ── */
+.react-flow__node {
+  z-index: 20 !important;
+}
+
+.react-flow__edgelabel-renderer {
+  z-index: 5 !important;
+  pointer-events: none;
+}
+
+.react-flow__edgelabel-renderer > * {
+  pointer-events: all;
+}
+
+.react-flow__edge {
+  z-index: 2 !important;
+}
