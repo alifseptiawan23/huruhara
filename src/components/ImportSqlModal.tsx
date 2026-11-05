@@ -243,11 +243,11 @@ export const ImportSqlModal: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-800/80 bg-slate-900/50 shrink-0">
-          <span className="text-[11px] text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 gap-2 border-t border-slate-800/80 bg-slate-900/50 shrink-0">
+          <span className="text-[11px] text-slate-500 hidden sm:inline">
             Mendukung: PostgreSQL · MySQL · SQLite · SQL Server · Oracle
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
             <button
               onClick={onClose}
               className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"

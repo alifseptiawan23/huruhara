@@ -83,7 +83,7 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
     >
       <div className="bg-[#0d1117] border border-slate-700/70 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden ring-1 ring-white/5 flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/60">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 bg-slate-900/60">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-md">
               <Folder size={16} className="text-white" />
@@ -102,7 +102,7 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {!user ? (
             <div className="text-center py-8 space-y-3">
               <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">

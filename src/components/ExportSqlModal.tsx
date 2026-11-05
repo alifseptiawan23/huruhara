@@ -107,7 +107,7 @@ export const ExportSqlModal: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-800/80 bg-slate-900/50 shrink-0">
+        <div className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 gap-2 border-t border-slate-800/80 bg-slate-900/50 shrink-0">
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             <Database size={12} />
             <span>
@@ -116,7 +116,7 @@ export const ExportSqlModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <span className="text-slate-500">{output.split('\n').length} baris</span>
             </span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
             <button onClick={handleDownload}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors">
               <Download size={13} />Download

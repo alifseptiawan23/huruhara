@@ -57,13 +57,13 @@ export const ShareModal: React.FC = () => {
     >
       <div className="bg-[#0d1117] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden ring-1 ring-white/10">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/60">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Share2 size={20} className="text-white" />
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 bg-slate-900/60">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+              <Share2 size={18} className="text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-sm font-bold text-white tracking-tight">
                   Kolaborasi Real-Time
                 </h2>
@@ -75,10 +75,10 @@ export const ShareModal: React.FC = () => {
                   }`}
                 >
                   <Radio size={10} className={isConnected ? 'animate-pulse' : ''} />
-                  {isConnected ? 'Live Sync Terhubung' : 'Menghubungkan...'}
+                  {isConnected ? 'Live Sync' : 'Menghubungkan...'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400">
                 Ajak tim mengedit diagram bersamaan layaknya Canva & Figma
               </p>
             </div>
@@ -92,7 +92,7 @@ export const ShareModal: React.FC = () => {
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Share Link Box */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">

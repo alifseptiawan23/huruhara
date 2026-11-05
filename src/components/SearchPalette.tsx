@@ -69,7 +69,7 @@ export const SearchPalette: React.FC<Props> = ({ isOpen, onClose, onFocusTable }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-10 sm:pt-24 p-3 sm:p-4 bg-black/75 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-[#0d1117] border border-slate-700/70 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden ring-1 ring-white/5">

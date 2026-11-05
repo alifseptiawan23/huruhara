@@ -45,7 +45,7 @@ export const SplitViewPanel: React.FC<Props> = ({ onClose }) => {
   const lineCount = text.split('\n').length;
 
   return (
-    <div className="w-[420px] shrink-0 flex flex-col bg-[#0d1117] border-l border-slate-800 relative">
+    <div className="fixed inset-0 z-40 md:relative md:inset-auto md:w-[420px] shrink-0 flex flex-col bg-[#0d1117] border-l border-slate-800 shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-2">

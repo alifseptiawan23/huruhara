@@ -193,13 +193,13 @@ export const App: React.FC = () => {
             proOptions={{ hideAttribution: true }}
           >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color="#1e293b" />
-            <Controls className="!bg-[#0d1117] !border-slate-800 !rounded-xl !shadow-2xl [&>button]:!bg-[#0d1117] [&>button]:!border-slate-800 [&>button]:!text-slate-400 hover:[&>button]:!bg-slate-800 hover:[&>button]:!text-white" />
+            <Controls className="!bg-[#0d1117] !border-slate-800 !rounded-xl !shadow-2xl [&>button]:!bg-[#0d1117] [&>button]:!border-slate-800 [&>button]:!text-slate-400 hover:[&>button]:!bg-slate-800 hover:[&>button]:!text-white !bottom-12 md:!bottom-4 !left-3" />
             <MiniMap
               zoomable
               pannable
               nodeColor={(n) => ((n.data as Record<string, unknown>)?.color as string) || '#6366f1'}
               maskColor="rgba(2,6,23,0.75)"
-              className="!bg-[#0d1117] !border !border-slate-800 !rounded-xl !shadow-2xl overflow-hidden"
+              className="hidden md:block !bg-[#0d1117] !border !border-slate-800 !rounded-xl !shadow-2xl overflow-hidden"
             />
             {/* Live Multiplayer Cursors (Canva / Figma style) */}
             <MultiplayerCursors />
