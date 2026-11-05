@@ -59,7 +59,7 @@ export const Toolbar: React.FC<Props> = ({
   } = useDiagramStore();
 
   const { user, signOut } = useAuthStore();
-  const { collaborators, setIsShareOpen } = useCollaborationStore();
+  const { collaborators, startSharing } = useCollaborationStore();
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -314,7 +314,7 @@ export const Toolbar: React.FC<Props> = ({
             <div
               className="flex items-center -space-x-1.5 sm:-space-x-2 cursor-pointer"
               title="Pengguna yang sedang online di sesi ini"
-              onClick={() => setIsShareOpen(true)}
+              onClick={() => startSharing(diagramId ? `diag_${diagramId}` : undefined, user)}
             >
               {collaborators.slice(0, 3).map((collab) => (
                 <div
@@ -340,7 +340,7 @@ export const Toolbar: React.FC<Props> = ({
 
           {/* Share / Kolaborasi Button */}
           <button
-            onClick={() => setIsShareOpen(true)}
+            onClick={() => startSharing(diagramId ? `diag_${diagramId}` : undefined, user)}
             className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shrink-0"
             title="Undang tim & edit skema bersamaan (Canva-style)"
           >

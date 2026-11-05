@@ -56,6 +56,7 @@ interface CollaborationState {
   setIsShareOpen: (open: boolean) => void;
   setMyName: (name: string) => void;
   initSession: (customRoomId?: string, user?: User | null) => void;
+  startSharing: (preferredRoomId?: string, user?: User | null) => void;
   broadcastCursor: (x: number, y: number) => void;
   broadcastDiagramChange: (sheets: Sheet[], activeSheetId: string) => void;
   cleanup: () => void;
@@ -79,7 +80,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
   const defaultName = getRandomItem(GUEST_NAMES);
 
   return {
-    roomId: 'default-room',
+    roomId: '',
     myProfile: {
       id: myId,
       name: defaultName,
@@ -109,6 +110,15 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       }
     },
 
+    startSharing: (preferredRoomId?: string, user?: User | null) => {
+      let currentRoom = get().roomId;
+      if (!currentRoom) {
+        currentRoom = preferredRoomId || `collab_${Math.random().toString(36).substring(2, 9)}`;
+        get().initSession(currentRoom, user);
+      }
+      set({ isShareOpen: true });
+    },
+
     initSession: (customRoomId?: string, user?: User | null) => {
       // Remove any previously created channel with the same or old room
       supabase.getChannels().forEach((ch) => {
@@ -117,10 +127,22 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
         }
       });
 
-      // Determine Room ID from param, URL search, or fallback
+      // Determine Room ID from param or URL search
       const urlParams = new URLSearchParams(window.location.search);
       const urlRoom = urlParams.get('room');
-      const targetRoom = customRoomId || urlRoom || 'canvas-collab-room';
+      const targetRoom = customRoomId || urlRoom;
+
+      // If no room is specified in URL or param, stay in private mode
+      if (!targetRoom) {
+        set({
+          roomId: '',
+          isConnected: false,
+          collaborators: [],
+          cursors: {},
+          channel: null,
+        });
+        return;
+      }
 
       // Update URL search query without full reload
       const currentUrl = new URL(window.location.href);
