@@ -100,12 +100,45 @@ export const Toolbar: React.FC<Props> = ({
   const nodes = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.nodes ?? []);
   const edges = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.edges ?? []);
 
-  const handleShareClick = () => {
+  const handleShareClick = async () => {
     if (!user) {
       onOpenAuth();
       return;
     }
-    startSharing(diagramId ? `diag_${diagramId}` : undefined, user);
+
+    let currentDiagramId = diagramId;
+    // If project is not yet saved to cloud, auto-save as a permanent cloud project file first!
+    if (!currentDiagramId) {
+      setSaving(true);
+      try {
+        const { data, error } = await supabase
+          .from('diagrams')
+          .insert({
+            user_id: user.id,
+            title: diagramTitle,
+            sheets,
+            active_sheet_id: activeSheetId,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          currentDiagramId = data.id;
+          useDiagramStore.setState({ diagramId: data.id });
+          onShowToast?.(`📁 File proyek "${diagramTitle}" disimpan ke Cloud!`);
+        }
+      } catch (err: any) {
+        console.error('Failed to auto-save project before sharing:', err);
+        alert('Gagal menyiapkan link file proyek: ' + (err?.message || 'Error'));
+        setSaving(false);
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    startSharing(currentDiagramId || undefined, user);
   };
 
   const handleExportPng = async () => {
@@ -164,6 +197,7 @@ export const Toolbar: React.FC<Props> = ({
       }
 
       setSaveSuccess(true);
+      onShowToast?.('☁️ Semua sheet & tabel berhasil disimpan ke Cloud!');
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
       alert(`Gagal menyimpan diagram: ${err?.message || 'Error'}`);

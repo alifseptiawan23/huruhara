@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCollaborationStore } from '../store/useCollaborationStore';
+import { useDiagramStore } from '../store/useDiagramStore';
 import {
   X,
   Share2,
@@ -9,6 +10,9 @@ import {
   Radio,
   Sparkles,
   ShieldCheck,
+  FolderGit2,
+  Layers,
+  Database,
 } from 'lucide-react';
 
 export const ShareModal: React.FC = () => {
@@ -21,11 +25,16 @@ export const ShareModal: React.FC = () => {
     isConnected,
   } = useCollaborationStore();
 
+  const { diagramTitle, sheets } = useDiagramStore();
+
   const [copied, setCopied] = useState(false);
 
   if (!isShareOpen) return null;
 
-  const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+  const totalTables = sheets.reduce((acc, sh) => acc + sh.nodes.length, 0);
+  const totalEdges = sheets.reduce((acc, sh) => acc + sh.edges.length, 0);
+
+  const shareUrl = `${window.location.origin}${window.location.pathname}?project=${roomId}`;
 
   const handleCopy = async () => {
     try {
@@ -33,7 +42,7 @@ export const ShareModal: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      prompt('Salin link kolaborasi berikut:', shareUrl);
+      prompt('Salin link file proyek berikut:', shareUrl);
     }
   };
 
@@ -54,7 +63,7 @@ export const ShareModal: React.FC = () => {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-sm font-bold text-white tracking-tight">
-                  Kolaborasi Real-Time
+                  Bagikan File Proyek
                 </h2>
                 <span
                   className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
@@ -64,11 +73,11 @@ export const ShareModal: React.FC = () => {
                   }`}
                 >
                   <Radio size={10} className={isConnected ? 'animate-pulse' : ''} />
-                  {isConnected ? 'Live Sync' : 'Menghubungkan...'}
+                  {isConnected ? 'Live Cloud Sync' : 'Menghubungkan...'}
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400">
-                Ajak tim mengedit diagram bersamaan layaknya Canva & Figma
+                Ajak tim membuka seluruh isi file diagram & edit bersamaan
               </p>
             </div>
           </div>
@@ -82,10 +91,41 @@ export const ShareModal: React.FC = () => {
 
         {/* Modal Body */}
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
+          {/* Project File Info Card */}
+          <div className="p-3.5 rounded-xl bg-slate-900/70 border border-indigo-500/30 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                <FolderGit2 size={18} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">
+                  File Proyek Cloud
+                </div>
+                <div className="text-xs sm:text-sm font-bold text-white truncate">
+                  {diagramTitle}
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                  <span className="flex items-center gap-1">
+                    <Layers size={11} className="text-violet-400" /> {sheets.length} Sheet
+                  </span>
+                  <span>·</span>
+                  <span className="flex items-center gap-1">
+                    <Database size={11} className="text-sky-400" /> {totalTables} Tabel
+                  </span>
+                  <span>·</span>
+                  <span>{totalEdges} Relasi</span>
+                </div>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 shrink-0">
+              Tersimpan
+            </span>
+          </div>
+
           {/* Share Link Box */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span>Link Sesi Kolaborasi</span>
+              <span>Link File Proyek (Siapapun dengan link ini)</span>
               <span className="text-[10px] text-amber-400 font-medium flex items-center gap-1">
                 <ShieldCheck size={12} /> Wajib Login Google
               </span>
@@ -103,11 +143,11 @@ export const ShareModal: React.FC = () => {
                 }`}
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'Tersalin!' : 'Salin'}</span>
+                <span>{copied ? 'Tersalin!' : 'Salin Link'}</span>
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Siapapun yang membuka link ini akan diminta masuk dengan akun Google terlebih dahulu sebelum dapat melihat dan mengedit.
+              Rekan yang membuka link ini akan langsung membuka file proyek yang sama (termasuk Sheet 1 & semua sheet lainnya), serta dapat berkontribusi secara real-time.
             </p>
           </div>
 
@@ -153,9 +193,9 @@ export const ShareModal: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                 <Users size={14} className="text-indigo-400" />
-                <span>Anggota Online ({collaborators.length})</span>
+                <span>Anggota yang Sedang Membuka File ({collaborators.length})</span>
               </div>
-              <span className="text-[11px] text-slate-500">Live Realtime Sync</span>
+              <span className="text-[11px] text-slate-500">Live Sync</span>
             </div>
 
             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
@@ -201,7 +241,7 @@ export const ShareModal: React.FC = () => {
           <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-900/40 flex items-start gap-2.5 text-xs text-slate-400">
             <Sparkles size={16} className="text-indigo-400 shrink-0 mt-0.5" />
             <div className="leading-relaxed text-[11px]">
-              Setiap tabel yang Anda geser, tambah, atau relasikan akan otomatis tersinkronisasi langsung ke layar seluruh anggota yang terhubung.
+              Setiap tabel yang Anda geser, tambah, atau relasikan akan otomatis tersimpan ke file proyek ini dan tersinkronisasi langsung ke layar seluruh anggota.
             </div>
           </div>
         </div>

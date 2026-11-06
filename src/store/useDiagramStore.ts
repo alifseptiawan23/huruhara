@@ -86,12 +86,49 @@ interface DiagramState {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#ef4444', '#14b8a6'];
 
+export const LOCAL_STORAGE_KEY = 'drawsql_local_draft_v1';
+
 const initialSheet: Sheet = {
   id: 'sheet-1',
   name: 'Main Schema',
   nodes: initialTables,
   edges: initialEdges,
 };
+
+// ─── Helper: Load initial draft from localStorage (if not opening shared project) ───
+const getInitialDraft = () => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const hasProjectParam = params.get('project') || params.get('diagram') || params.get('room');
+    if (!hasProjectParam) {
+      try {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
+            return {
+              sheets: parsed.sheets,
+              activeSheetId: parsed.activeSheetId || parsed.sheets[0].id,
+              diagramTitle: parsed.diagramTitle || 'Untitled Schema',
+              diagramId: parsed.diagramId || null,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse local draft:', err);
+      }
+    }
+  }
+
+  return {
+    sheets: [initialSheet],
+    activeSheetId: 'sheet-1',
+    diagramTitle: 'Untitled Schema',
+    diagramId: null,
+  };
+};
+
+const initialData = getInitialDraft();
 
 // ─── Helper: mutate active sheet ─────────────────────────────────────────────
 function updateActive(
@@ -104,24 +141,41 @@ function updateActive(
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useDiagramStore = create<DiagramState>((set, get) => ({
-  sheets: [initialSheet],
-  activeSheetId: 'sheet-1',
+  sheets: initialData.sheets,
+  activeSheetId: initialData.activeSheetId,
   hoveredTableId: null,
   showSplitView: false,
   animateEdges: true,
-  diagramId: null,
-  diagramTitle: 'Untitled Schema',
+  diagramId: initialData.diagramId,
+  diagramTitle: initialData.diagramTitle,
 
   setDiagramTitle: (title) => set({ diagramTitle: title }),
-  loadCloudDiagram: (id, title, sheets, activeSheetId) =>
-    set({ diagramId: id, diagramTitle: title, sheets, activeSheetId }),
-  newDiagram: () =>
+  loadCloudDiagram: (id, title, sheets, activeSheetId) => {
+    set({ diagramId: id, diagramTitle: title, sheets, activeSheetId });
+    saveDraftImmediately();
+  },
+  resetToSample: () => {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {}
+    set({
+      diagramId: null,
+      diagramTitle: 'Untitled Schema',
+      sheets: [initialSheet],
+      activeSheetId: 'sheet-1',
+    });
+  },
+  newDiagram: () => {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {}
     set({
       diagramId: null,
       diagramTitle: 'Untitled Schema',
       sheets: [{ id: 'sheet-1', name: 'Main Schema', nodes: [], edges: [] }],
       activeSheetId: 'sheet-1',
-    }),
+    });
+  },
 
   // ── ReactFlow handlers ──────────────────────────────────────────────────────
   onNodesChange: (changes) => {
@@ -392,18 +446,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   toggleSplitView: () => set((s) => ({ showSplitView: !s.showSplitView })),
   toggleEdgeAnimation: () => set((s) => ({ animateEdges: !s.animateEdges })),
 
-  // ── Reset ───────────────────────────────────────────────────────────────────
-  resetToSample: () => {
-    const { sheets, activeSheetId } = get();
-    set({
-      sheets: updateActive(sheets, activeSheetId, (sh) => ({
-        ...sh,
-        nodes: initialTables,
-        edges: initialEdges,
-      })),
-    });
-  },
-
   // ── Clipboard & Selection ───────────────────────────────────────────────────
   clipboard: null,
   isSelectMode: false,
@@ -538,6 +580,36 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     return count;
   },
 }));
+
+export const saveDraftImmediately = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const state = useDiagramStore.getState();
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({
+        sheets: state.sheets,
+        activeSheetId: state.activeSheetId,
+        diagramTitle: state.diagramTitle,
+        diagramId: state.diagramId,
+        updatedAt: Date.now(),
+      })
+    );
+  } catch (e) {
+    console.warn('Failed immediate save:', e);
+  }
+};
+
+// Auto-persist local draft to localStorage (every edit is preserved!)
+if (typeof window !== 'undefined') {
+  let saveDraftTimer: any = null;
+  useDiagramStore.subscribe(() => {
+    if (saveDraftTimer) clearTimeout(saveDraftTimer);
+    saveDraftTimer = setTimeout(() => {
+      saveDraftImmediately();
+    }, 400);
+  });
+}
 
 // ─── Real-time Collaboration Broadcaster ──────────────────────────────────────
 type CollabBroadcaster = (sheets: Sheet[], activeSheetId: string) => void;

@@ -38,10 +38,10 @@ export const JoinRoomAuthModal: React.FC = () => {
             <Lock size={22} className="text-white" />
           </div>
           <h2 className="text-base font-bold text-white tracking-tight">
-            Sesi Kolaborasi Terkunci
+            File Proyek Terproteksi
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Anda diundang ke sesi diagram <span className="font-mono text-indigo-400">#{roomId}</span>
+            Anda diundang untuk membuka file proyek diagram <span className="font-mono text-indigo-400">#{roomId}</span>
           </p>
         </div>
 
@@ -57,10 +57,10 @@ export const JoinRoomAuthModal: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-indigo-950/20 border border-indigo-900/40 text-xs text-slate-300 space-y-1.5 leading-relaxed">
             <div className="flex items-center gap-1.5 font-semibold text-white">
               <Sparkles size={14} className="text-indigo-400" />
-              <span>Login Diperlukan untuk Bergabung</span>
+              <span>Login Google untuk Membuka Proyek</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Untuk menjaga integritas skema dan menampilkan identitas kursor Anda secara real-time, Anda harus masuk dengan akun Google terlebih dahulu.
+              Masuk dengan akun Google untuk membuka seluruh sheet, tabel, dan relasi di file proyek ini, serta ikut berkontribusi secara real-time.
             </p>
           </div>
 

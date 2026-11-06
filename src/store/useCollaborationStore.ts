@@ -92,17 +92,19 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       // Must be logged in to share
       if (!user) return;
 
-      let currentRoom = get().roomId;
+      let currentRoom = preferredRoomId || get().roomId;
       if (!currentRoom) {
-        currentRoom = preferredRoomId || `collab_${Math.random().toString(36).substring(2, 9)}`;
-        get().initSession(currentRoom, user);
+        currentRoom = `collab_${Math.random().toString(36).substring(2, 9)}`;
       }
+      get().initSession(currentRoom, user);
       set({ isShareOpen: true });
     },
 
     leaveRoom: () => {
-      // Clear room parameter from URL
+      // Clear project/room parameter from URL
       const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete('project');
+      currentUrl.searchParams.delete('diagram');
       currentUrl.searchParams.delete('room');
       window.history.replaceState({}, '', currentUrl.toString());
 
@@ -121,10 +123,12 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
         }
       });
 
-      // 2. Determine target room
+      // 2. Determine target room / project
       const urlParams = new URLSearchParams(window.location.search);
+      const urlProject = urlParams.get('project') || urlParams.get('diagram');
       const urlRoom = urlParams.get('room');
-      const targetRoom = customRoomId || urlRoom;
+      const rawTarget = customRoomId || urlProject || urlRoom;
+      const targetRoom = rawTarget ? rawTarget.replace('diag_', '') : '';
 
       // If no room is requested in URL or param, stay in private mode
       if (!targetRoom) {
@@ -158,8 +162,10 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
 
       // Update URL search query without full reload
       const currentUrl = new URL(window.location.href);
-      if (currentUrl.searchParams.get('room') !== targetRoom) {
-        currentUrl.searchParams.set('room', targetRoom);
+      currentUrl.searchParams.delete('room');
+      currentUrl.searchParams.delete('diagram');
+      if (currentUrl.searchParams.get('project') !== targetRoom) {
+        currentUrl.searchParams.set('project', targetRoom);
         window.history.replaceState({}, '', currentUrl.toString());
       }
 
@@ -183,12 +189,11 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       set({ roomId: targetRoom, myProfile });
 
       // If targetRoom is from a saved cloud diagram, load it if available
-      if (targetRoom.startsWith('diag_')) {
-        const diagId = targetRoom.replace('diag_', '');
+      if (targetRoom && !targetRoom.startsWith('collab_')) {
         supabase
           .from('diagrams')
           .select('*')
-          .eq('id', diagId)
+          .eq('id', targetRoom)
           .single()
           .then(({ data, error }) => {
             if (!error && data) {
@@ -381,6 +386,21 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           timestamp: Date.now(),
         },
       });
+
+      // Auto-save changes to cloud if editing a shared cloud project file
+      if (roomId && !roomId.startsWith('collab_')) {
+        const title = useDiagramStore.getState().diagramTitle;
+        supabase
+          .from('diagrams')
+          .update({
+            title,
+            sheets,
+            active_sheet_id: activeSheetId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', roomId)
+          .then();
+      }
     },
 
     broadcastTitleChange: (newTitle: string) => {
@@ -396,6 +416,17 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           timestamp: Date.now(),
         },
       });
+
+      if (roomId && !roomId.startsWith('collab_')) {
+        supabase
+          .from('diagrams')
+          .update({
+            title: newTitle,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', roomId)
+          .then();
+      }
     },
 
     cleanup: () => {

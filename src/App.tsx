@@ -9,8 +9,9 @@ import {
   SelectionMode,
 } from '@xyflow/react';
 import type { NodeTypes, EdgeTypes, Viewport } from '@xyflow/react';
-import { useDiagramStore, selectActiveSheet, selectActiveEdges } from './store/useDiagramStore';
+import { useDiagramStore, selectActiveSheet, selectActiveEdges, saveDraftImmediately } from './store/useDiagramStore';
 import { useAuthStore } from './store/useAuthStore';
+import { supabase } from './lib/supabase';
 import { TableNode } from './components/TableNode';
 import { CrowsFootEdge } from './components/CrowsFootEdge';
 import { Toolbar } from './components/Toolbar';
@@ -71,6 +72,73 @@ export const App: React.FC = () => {
     const unsubscribe = initializeAuth();
     return () => unsubscribe();
   }, [initializeAuth]);
+
+  // Auto-save on page exit / tab change / window blur (Pertanyaan 1: Auto-save ketika user keluar dari UI)
+  useEffect(() => {
+    const handleExit = () => {
+      // 1. Immediately sync all sheets and tables to localStorage
+      saveDraftImmediately();
+
+      // 2. If logged in and diagram has cloud ID, sync to Supabase
+      const currentUser = useAuthStore.getState().user;
+      const { diagramId, diagramTitle, sheets, activeSheetId } = useDiagramStore.getState();
+      if (currentUser && diagramId) {
+        supabase
+          .from('diagrams')
+          .update({
+            title: diagramTitle,
+            sheets,
+            active_sheet_id: activeSheetId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', diagramId)
+          .then();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleExit);
+    window.addEventListener('pagehide', handleExit);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        handleExit();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleExit);
+      window.removeEventListener('pagehide', handleExit);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Background cloud auto-save (Figma/Docs style) when user is logged in
+  const lastCloudSaveRef = React.useRef<any>(null);
+  const allSheets = useDiagramStore((s) => s.sheets);
+  const diagramTitle = useDiagramStore((s) => s.diagramTitle);
+  const diagramId = useDiagramStore((s) => s.diagramId);
+
+  useEffect(() => {
+    if (!user || !diagramId) return;
+
+    if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
+    lastCloudSaveRef.current = setTimeout(() => {
+      supabase
+        .from('diagrams')
+        .update({
+          title: diagramTitle,
+          sheets: allSheets,
+          active_sheet_id: activeSheetId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', diagramId)
+        .then();
+    }, 2500);
+
+    return () => {
+      if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
+    };
+  }, [allSheets, diagramTitle, diagramId, user, activeSheetId]);
 
   // Initialize Real-time Collaboration (Canva/Figma style)
   useEffect(() => {
