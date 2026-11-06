@@ -208,9 +208,9 @@ export const Toolbar: React.FC<Props> = ({
 
   return (
     <>
-      <header className="h-14 bg-[#0d1117]/95 backdrop-blur-md border-b border-slate-800/80 px-2 sm:px-4 flex items-center justify-between z-30 relative select-none">
-        {/* Brand & Project Title */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <header className="h-14 bg-[#0d1117]/95 backdrop-blur-md border-b border-slate-800/80 px-2 sm:px-4 flex items-center justify-between z-30 relative select-none gap-2">
+        {/* Left Section: Brand, Project Title & Cloud Status */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           <div className="relative w-7 h-7 sm:w-8 sm:h-8 shrink-0">
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-indigo-500/30">
               <Database size={15} className="text-white" />
@@ -218,11 +218,11 @@ export const Toolbar: React.FC<Props> = ({
             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#0d1117]" />
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {/* Project Title Button with Pencil Icon */}
             <button
               onClick={() => setIsRenameOpen(true)}
-              className="group flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 text-xs font-bold text-white transition-all max-w-[95px] xs:max-w-[130px] sm:max-w-[180px] md:max-w-[220px]"
+              className="group flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 text-xs font-bold text-white transition-all max-w-[100px] xs:max-w-[130px] sm:max-w-[160px] md:max-w-[180px]"
               title="Klik untuk ubah nama proyek"
             >
               <span className="truncate">{diagramTitle}</span>
@@ -233,10 +233,10 @@ export const Toolbar: React.FC<Props> = ({
             <button
               onClick={handleSaveToCloud}
               disabled={saving}
-              className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-all ${
                 saveSuccess
                   ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-400'
-                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
               }`}
               title={user ? 'Simpan diagram ke cloud Supabase' : 'Login untuk simpan ke cloud'}
             >
@@ -252,10 +252,10 @@ export const Toolbar: React.FC<Props> = ({
               </span>
             </button>
 
-            {/* My Diagrams Button (Hidden on small mobile) */}
+            {/* My Diagrams Button */}
             <button
               onClick={onOpenMyDiagrams}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/60 transition-all"
+              className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-800 hover:border-slate-700 transition-all"
               title="Buka daftar diagram saya"
             >
               <Folder size={13} className="text-slate-400" />
@@ -264,187 +264,163 @@ export const Toolbar: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Center Tool Buttons (Visible on desktop lg+) */}
-        <div className="hidden lg:flex items-center gap-1.5">
+        {/* Center Section: Compact Tool Clusters (Fits cleanly on 100% zoom & laptops) */}
+        <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+          {/* Primary: New Table Button */}
           <button
             onClick={addTable}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-[1.02] shadow-md shadow-indigo-600/20"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-[1.02] shadow-md shadow-indigo-600/20 shrink-0"
+            title="Tambah Tabel Baru"
           >
             <Plus size={14} />
             <span>New Table</span>
           </button>
 
-          {/* Rectangle Selection & Copy/Paste Controls */}
-          <button
-            onClick={toggleSelectMode}
-            title={
-              isSelectMode
-                ? 'Mode Kotak Seleksi AKTIF (Klik & geser untuk memilih banyak tabel). Klik untuk kembali ke mode geser canvas.'
-                : 'Aktifkan Mode Kotak Seleksi (Rectangle Select). Anda juga bisa tahan tombol Shift sambil geser mouse.'
-            }
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all ${
-              isSelectMode
-                ? 'bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30'
-                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
-            }`}
-          >
-            <BoxSelect size={13} />
-            <span className="hidden xl:inline">{isSelectMode ? 'Kotak Seleksi (Aktif)' : 'Kotak Seleksi'}</span>
-          </button>
-
-          <button
-            onClick={() => {
-              const count = copySelectedTables();
-              if (count > 0) {
-                onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel (Ctrl+V)`);
-              } else {
-                onShowToast?.('Pilih tabel terlebih dahulu (klik atau tarik kotak seleksi)');
+          {/* Cluster 1: Selection & Clipboard */}
+          <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={toggleSelectMode}
+              title={
+                isSelectMode
+                  ? 'Mode Kotak Seleksi AKTIF (Klik untuk kembali ke geser canvas)'
+                  : 'Mode Kotak Seleksi (Rectangle Select). Anda juga bisa Shift+Tarik mouse.'
               }
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-            title="Salin tabel terpilih (Ctrl+C)"
-          >
-            <Copy size={13} />
-            <span className="hidden xl:inline">Salin</span>
-          </button>
+              className={`p-1.5 rounded-md transition-all ${
+                isSelectMode
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <BoxSelect size={14} />
+            </button>
 
-          <button
-            onClick={() => {
-              const count = pasteTables();
-              if (count > 0) {
-                onShowToast?.(`✨ ${count} tabel berhasil ditempel ke sheet ini!`);
-              } else {
-                onShowToast?.('Belum ada tabel yang disalin. Salin tabel terlebih dahulu dengan Ctrl+C');
-              }
-            }}
-            disabled={!clipboard}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all ${
-              clipboard
-                ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
-                : 'opacity-40 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-600'
-            }`}
-            title={clipboard ? `Tempel ${clipboard.nodes.length} tabel ke sheet ini (Ctrl+V)` : 'Tempel tabel (Ctrl+V)'}
-          >
-            <ClipboardPaste size={13} />
-            <span className="hidden xl:inline">Tempel</span>
-          </button>
+            <button
+              onClick={() => {
+                const count = copySelectedTables();
+                if (count > 0) {
+                  onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel (Ctrl+V)`);
+                } else {
+                  onShowToast?.('Pilih tabel terlebih dahulu (klik atau tarik kotak seleksi)');
+                }
+              }}
+              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+              title="Salin tabel terpilih (Ctrl+C)"
+            >
+              <Copy size={14} />
+            </button>
 
-          <div className="h-5 w-px bg-slate-800 mx-0.5" />
+            <button
+              onClick={() => {
+                const count = pasteTables();
+                if (count > 0) {
+                  onShowToast?.(`✨ ${count} tabel berhasil ditempel!`);
+                } else {
+                  onShowToast?.('Belum ada tabel yang disalin. Salin tabel terlebih dahulu dengan Ctrl+C');
+                }
+              }}
+              disabled={!clipboard}
+              className={`p-1.5 rounded-md transition-all ${
+                clipboard
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-600 opacity-40 cursor-not-allowed'
+              }`}
+              title={clipboard ? `Tempel ${clipboard.nodes.length} tabel (Ctrl+V)` : 'Tempel tabel (Ctrl+V)'}
+            >
+              <ClipboardPaste size={14} />
+            </button>
+          </div>
 
-          <button
-            onClick={onOpenImportSql}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-          >
-            <Upload size={13} className="text-slate-400" />
-            <span>Import SQL</span>
-          </button>
+          {/* Cluster 2: Layout & View Controls */}
+          <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={applyAutoLayout}
+              title="Rapikan Tata Letak Otomatis (Auto Layout Dagre)"
+              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+            >
+              <Workflow size={14} />
+            </button>
 
-          <button
-            onClick={onOpenExportSql}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-          >
-            <FileCode size={13} className="text-slate-400" />
-            <span>Export</span>
-          </button>
+            <button
+              onClick={toggleSplitView}
+              title="Toggle Panel SQL Preview"
+              className={`p-1.5 rounded-md transition-all ${
+                showSplitView
+                  ? 'bg-indigo-600/30 text-indigo-300'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <PanelRight size={14} />
+            </button>
 
-          <button
-            onClick={handleExportPng}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-          >
-            <Camera size={13} className="text-slate-400" />
-            <span>PNG</span>
-          </button>
+            <button
+              onClick={toggleEdgeAnimation}
+              title="Toggle animasi garis relasi"
+              className={`p-1.5 rounded-md transition-all ${
+                animateEdges
+                  ? 'text-emerald-400 hover:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              {animateEdges ? <Zap size={14} /> : <ZapOff size={14} />}
+            </button>
+          </div>
 
-          <div className="h-5 w-px bg-slate-800 mx-0.5" />
+          {/* Cluster 3: Import & Export Group */}
+          <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5 text-xs">
+            <button
+              onClick={onOpenImportSql}
+              title="Import Skema dari SQL DDL"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+            >
+              <Upload size={13} className="text-slate-400" />
+              <span className="hidden xl:inline">Import</span>
+            </button>
 
-          <button
-            onClick={applyAutoLayout}
-            title="Auto-layout dengan Dagre"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-violet-600/80 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-          >
-            <Workflow size={13} />
-            <span>Auto Layout</span>
-          </button>
+            <button
+              onClick={onOpenExportSql}
+              title="Export Skema ke SQL (PostgreSQL, MySQL, SQLite)"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+            >
+              <FileCode size={13} className="text-slate-400" />
+              <span className="hidden xl:inline">Export</span>
+            </button>
 
-          <button
-            onClick={toggleSplitView}
-            title="SQL Editor Panel"
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all ${
-              showSplitView
-                ? 'bg-indigo-600/20 border-indigo-600/50 text-indigo-300'
-                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
-            }`}
-          >
-            <PanelRight size={13} />
-            <span>SQL Panel</span>
-          </button>
+            <button
+              onClick={handleExportPng}
+              title="Download Diagram sebagai Gambar PNG"
+              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+            >
+              <Camera size={14} />
+            </button>
+          </div>
 
-          <button
-            onClick={onOpenSearch}
-            title="Cari tabel (Ctrl+K)"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-          >
-            <Search size={13} />
-            <span>Search</span>
-            <kbd className="text-[9px] ml-0.5 opacity-50">⌘K</kbd>
-          </button>
+          {/* Cluster 4: Search & Shortcuts */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onOpenSearch}
+              title="Cari Tabel & Kolom (Ctrl+K)"
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs transition-all"
+            >
+              <Search size={13} className="text-slate-400" />
+              <kbd className="text-[9px] px-1 py-0.2 bg-slate-800 border border-slate-700 rounded text-slate-400 font-mono">⌘K</kbd>
+            </button>
 
-          <button
-            onClick={onOpenShortcuts}
-            title="Pintasan Keyboard (Shortcuts / ?)"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
-          >
-            <Keyboard size={13} className="text-indigo-400" />
-            <span className="hidden xl:inline">Shortcuts</span>
-            <kbd className="text-[9px] ml-0.5 opacity-50 font-mono">?</kbd>
-          </button>
-
-          <button
-            onClick={toggleEdgeAnimation}
-            title="Toggle animasi garis relasi"
-            className={`p-1.5 rounded-lg border text-xs transition-all ${
-              animateEdges
-                ? 'bg-emerald-600/20 border-emerald-600/40 text-emerald-400'
-                : 'bg-slate-800/80 border-slate-700/60 text-slate-500 hover:text-white'
-            }`}
-          >
-            {animateEdges ? <Zap size={14} /> : <ZapOff size={14} />}
-          </button>
-        </div>
-
-        {/* Tablet quick action buttons (md to lg) */}
-        <div className="hidden md:flex lg:hidden items-center gap-1.5">
-          <button
-            onClick={addTable}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
-          >
-            <Plus size={13} />
-            <span>Table</span>
-          </button>
-          <button
-            onClick={applyAutoLayout}
-            className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60"
-            title="Auto Layout"
-          >
-            <Workflow size={14} />
-          </button>
-          <button
-            onClick={toggleSplitView}
-            className={`p-1.5 rounded-lg border transition-all ${
-              showSplitView ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700/60'
-            }`}
-            title="SQL Editor Panel"
-          >
-            <PanelRight size={14} />
-          </button>
+            <button
+              onClick={onOpenShortcuts}
+              title="Panduan Pintasan Keyboard (?)"
+              className="p-1.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-all"
+            >
+              <Keyboard size={14} className="text-indigo-400" />
+            </button>
+          </div>
         </div>
 
         {/* Right Section: Collaborators, Share, Auth, Mobile Menu */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Quick Add Table on Mobile */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Quick Add Table on Mobile (< lg) */}
           <button
             onClick={addTable}
-            className="flex md:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
+            className="flex lg:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
             title="Tambah Tabel Baru"
           >
             <Plus size={14} />
@@ -455,7 +431,7 @@ export const Toolbar: React.FC<Props> = ({
           {collaborators.length > 0 && (
             <div
               className="flex items-center -space-x-1.5 sm:-space-x-2 cursor-pointer"
-              title="Pengguna yang sedang online di sesi ini"
+              title="Pengguna yang sedang membuka file proyek ini"
               onClick={handleShareClick}
             >
               {collaborators.slice(0, 3).map((collab) => (
@@ -483,8 +459,8 @@ export const Toolbar: React.FC<Props> = ({
           {/* Share / Kolaborasi Button */}
           <button
             onClick={handleShareClick}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shrink-0"
-            title="Undang tim & edit skema bersamaan (Canva-style)"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shrink-0"
+            title="Bagikan file proyek ke rekan tim"
           >
             <Share2 size={13} />
             <span className="hidden sm:inline">Bagikan</span>
@@ -498,7 +474,7 @@ export const Toolbar: React.FC<Props> = ({
           {/* Reset button (Desktop only) */}
           <button
             onClick={resetToSample}
-            className="hidden xl:flex items-center gap-1 text-slate-500 hover:text-slate-200 text-xs px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="hidden 2xl:flex items-center gap-1 text-slate-500 hover:text-slate-200 text-xs px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors"
             title="Reset ke skema contoh"
           >
             <RotateCcw size={12} />
@@ -507,9 +483,9 @@ export const Toolbar: React.FC<Props> = ({
 
           {/* User Auth Section */}
           {user ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5">
               <div
-                className="hidden sm:flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-300 font-medium max-w-[100px] sm:max-w-[130px] truncate"
+                className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-300 font-medium max-w-[120px] truncate"
                 title={user.email}
               >
                 <User size={12} className="shrink-0" />
@@ -517,7 +493,7 @@ export const Toolbar: React.FC<Props> = ({
               </div>
               <button
                 onClick={() => signOut()}
-                className="hidden sm:flex p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-slate-700/60 transition-colors"
+                className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-slate-800 hover:border-slate-700 transition-colors"
                 title="Keluar / Logout"
               >
                 <LogOut size={13} />
