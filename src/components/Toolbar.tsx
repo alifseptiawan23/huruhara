@@ -4,6 +4,7 @@ import { useDiagramStore } from '../store/useDiagramStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
 import { supabase } from '../lib/supabase';
+import { EditProjectNameModal } from './EditProjectNameModal';
 import {
   Plus,
   Upload,
@@ -29,6 +30,8 @@ import {
   BoxSelect,
   Copy,
   ClipboardPaste,
+  Pencil,
+  Keyboard,
 } from 'lucide-react';
 
 interface Props {
@@ -37,6 +40,7 @@ interface Props {
   onOpenSearch: () => void;
   onOpenAuth: () => void;
   onOpenMyDiagrams: () => void;
+  onOpenShortcuts: () => void;
   onShowToast?: (msg: string) => void;
 }
 
@@ -46,6 +50,7 @@ export const Toolbar: React.FC<Props> = ({
   onOpenSearch,
   onOpenAuth,
   onOpenMyDiagrams,
+  onOpenShortcuts,
   onShowToast,
 }) => {
   const {
@@ -73,6 +78,24 @@ export const Toolbar: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+
+  const handleSaveProjectName = async (newTitle: string) => {
+    setDiagramTitle(newTitle);
+    useCollaborationStore.getState().broadcastTitleChange(newTitle);
+
+    if (diagramId && user) {
+      try {
+        await supabase
+          .from('diagrams')
+          .update({ title: newTitle, updated_at: new Date().toISOString() })
+          .eq('id', diagramId);
+      } catch (err) {
+        console.error('Failed to update title in cloud:', err);
+      }
+    }
+    onShowToast?.(`✏️ Nama proyek diubah: "${newTitle}"`);
+  };
 
   const nodes = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.nodes ?? []);
   const edges = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.edges ?? []);
@@ -162,13 +185,15 @@ export const Toolbar: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <input
-              type="text"
-              value={diagramTitle}
-              onChange={(e) => setDiagramTitle(e.target.value)}
-              className="text-xs font-bold text-white bg-transparent hover:bg-slate-800/80 focus:bg-slate-800 px-1.5 sm:px-2 py-1 rounded-md border border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-colors max-w-[85px] sm:max-w-[120px] md:max-w-[160px] truncate"
-              title="Klik untuk ubah judul diagram"
-            />
+            {/* Project Title Button with Pencil Icon */}
+            <button
+              onClick={() => setIsRenameOpen(true)}
+              className="group flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 text-xs font-bold text-white transition-all max-w-[95px] xs:max-w-[130px] sm:max-w-[180px] md:max-w-[220px]"
+              title="Klik untuk ubah nama proyek"
+            >
+              <span className="truncate">{diagramTitle}</span>
+              <Pencil size={11} className="text-slate-400 group-hover:text-indigo-400 shrink-0 transition-colors" />
+            </button>
 
             {/* Cloud Save Button */}
             <button
@@ -331,6 +356,16 @@ export const Toolbar: React.FC<Props> = ({
           </button>
 
           <button
+            onClick={onOpenShortcuts}
+            title="Pintasan Keyboard (Shortcuts / ?)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
+          >
+            <Keyboard size={13} className="text-indigo-400" />
+            <span className="hidden xl:inline">Shortcuts</span>
+            <kbd className="text-[9px] ml-0.5 opacity-50 font-mono">?</kbd>
+          </button>
+
+          <button
             onClick={toggleEdgeAnimation}
             title="Toggle animasi garis relasi"
             className={`p-1.5 rounded-lg border text-xs transition-all ${
@@ -485,6 +520,27 @@ export const Toolbar: React.FC<Props> = ({
             className="bg-[#0d1117] border-b border-slate-800 shadow-2xl p-4 space-y-3 max-h-[80vh] overflow-y-auto animate-in slide-in-from-top duration-200"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Project Title Banner in Mobile Drawer */}
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+              <div className="flex items-center gap-2 min-w-0 pr-2">
+                <Folder size={14} className="text-indigo-400 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[10px] text-slate-500 font-medium">Proyek Aktif</div>
+                  <div className="text-xs font-bold text-white truncate">{diagramTitle}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsRenameOpen(true);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/50 hover:border-indigo-400 text-indigo-200 hover:text-white rounded-lg text-xs font-medium transition-colors shrink-0"
+              >
+                <Pencil size={11} />
+                <span>Ubah</span>
+              </button>
+            </div>
+
             {/* Quick Overview */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
               <span className="text-xs font-semibold text-slate-400">Panel Kontrol</span>
@@ -634,6 +690,17 @@ export const Toolbar: React.FC<Props> = ({
                 )}
                 <span>Animasi Garis</span>
               </button>
+
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenShortcuts();
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 col-span-2"
+              >
+                <Keyboard size={14} className="text-indigo-400 shrink-0" />
+                <span>Pintasan Keyboard (Shortcuts)</span>
+              </button>
             </div>
 
             {/* Reset & Account options */}
@@ -665,6 +732,13 @@ export const Toolbar: React.FC<Props> = ({
           </div>
         </div>
       )}
+      {/* Edit Project Name Modal */}
+      <EditProjectNameModal
+        isOpen={isRenameOpen}
+        onClose={() => setIsRenameOpen(false)}
+        currentTitle={diagramTitle}
+        onSave={handleSaveProjectName}
+      />
     </>
   );
 };

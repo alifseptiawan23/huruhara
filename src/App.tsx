@@ -24,6 +24,7 @@ import { MyDiagramsModal } from './components/MyDiagramsModal';
 import { MultiplayerCursors } from './components/MultiplayerCursors';
 import { ShareModal } from './components/ShareModal';
 import { JoinRoomAuthModal } from './components/JoinRoomAuthModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { useCollaborationStore } from './store/useCollaborationStore';
 
 const nodeTypes: NodeTypes = { tableNode: TableNode };
@@ -55,6 +56,7 @@ export const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -112,6 +114,12 @@ export const App: React.FC = () => {
       if (isInput) return;
 
       const ctrl = e.ctrlKey || e.metaKey;
+
+      if (e.key === '?' || (e.shiftKey && e.key === '/') || e.key === 'F1') {
+        e.preventDefault();
+        setIsShortcutsOpen(true);
+        return;
+      }
 
       if (ctrl && (e.key === 'k' || e.key === 'f')) {
         e.preventDefault();
@@ -207,6 +215,7 @@ export const App: React.FC = () => {
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenMyDiagrams={() => setIsMyDiagramsOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onShowToast={showToast}
       />
 
@@ -284,6 +293,7 @@ export const App: React.FC = () => {
       />
       <ShareModal />
       <JoinRoomAuthModal />
+      <ShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
 
       {/* Floating Toast / Action HUD Pill */}
       {toastMessage && (

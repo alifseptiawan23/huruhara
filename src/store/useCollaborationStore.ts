@@ -50,6 +50,7 @@ interface CollaborationState {
   leaveRoom: () => void;
   broadcastCursor: (x: number, y: number) => void;
   broadcastDiagramChange: (sheets: Sheet[], activeSheetId: string) => void;
+  broadcastTitleChange: (newTitle: string) => void;
   cleanup: () => void;
 }
 
@@ -288,6 +289,14 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
         useDiagramStore.getState().applyRemoteUpdate(payload.sheets, payload.activeSheetId);
       });
 
+      // 3b. Broadcast: Diagram Title change
+      roomChannel.on('broadcast', { event: 'title_update' }, ({ payload }) => {
+        if (!payload || payload.senderId === myProfile.id) return;
+        if (payload.title) {
+          useDiagramStore.setState({ diagramTitle: payload.title });
+        }
+      });
+
       // 4. Broadcast: Request canvas state when a new peer joins
       roomChannel.on('broadcast', { event: 'request_state' }, ({ payload }) => {
         if (payload && payload.requesterId !== myProfile.id) {
@@ -369,6 +378,21 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           senderId: myProfile.id,
           sheets,
           activeSheetId,
+          timestamp: Date.now(),
+        },
+      });
+    },
+
+    broadcastTitleChange: (newTitle: string) => {
+      const { channel, isConnected, myProfile, roomId } = get();
+      if (!channel || !isConnected || !roomId) return;
+
+      channel.send({
+        type: 'broadcast',
+        event: 'title_update',
+        payload: {
+          senderId: myProfile.id,
+          title: newTitle,
           timestamp: Date.now(),
         },
       });
