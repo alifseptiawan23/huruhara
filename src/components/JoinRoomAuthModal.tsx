@@ -111,3 +111,4 @@ export const JoinRoomAuthModal: React.FC = () => {
     </div>
   );
 };
+

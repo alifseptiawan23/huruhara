@@ -30,3 +30,17 @@ body,
 .react-flow__edge {
   z-index: 2 !important;
 }
+
+/* ── Selection Box (Rectangle Marquee) & Selected Nodes ── */
+.react-flow__selection {
+  background: rgba(99, 102, 241, 0.18) !important;
+  border: 1.5px solid #818cf8 !important;
+  border-radius: 6px;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.react-flow__node.selected {
+  outline: 2px solid #818cf8 !important;
+  outline-offset: 3px;
+  border-radius: 14px;
+}

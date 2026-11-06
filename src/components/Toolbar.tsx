@@ -26,6 +26,9 @@ import {
   Share2,
   Menu,
   X,
+  BoxSelect,
+  Copy,
+  ClipboardPaste,
 } from 'lucide-react';
 
 interface Props {
@@ -34,6 +37,7 @@ interface Props {
   onOpenSearch: () => void;
   onOpenAuth: () => void;
   onOpenMyDiagrams: () => void;
+  onShowToast?: (msg: string) => void;
 }
 
 export const Toolbar: React.FC<Props> = ({
@@ -42,6 +46,7 @@ export const Toolbar: React.FC<Props> = ({
   onOpenSearch,
   onOpenAuth,
   onOpenMyDiagrams,
+  onShowToast,
 }) => {
   const {
     addTable,
@@ -56,6 +61,11 @@ export const Toolbar: React.FC<Props> = ({
     setDiagramTitle,
     sheets,
     activeSheetId,
+    clipboard,
+    copySelectedTables,
+    pasteTables,
+    isSelectMode,
+    toggleSelectMode,
   } = useDiagramStore();
 
   const { user, signOut } = useAuthStore();
@@ -203,6 +213,61 @@ export const Toolbar: React.FC<Props> = ({
           >
             <Plus size={14} />
             <span>New Table</span>
+          </button>
+
+          {/* Rectangle Selection & Copy/Paste Controls */}
+          <button
+            onClick={toggleSelectMode}
+            title={
+              isSelectMode
+                ? 'Mode Kotak Seleksi AKTIF (Klik & geser untuk memilih banyak tabel). Klik untuk kembali ke mode geser canvas.'
+                : 'Aktifkan Mode Kotak Seleksi (Rectangle Select). Anda juga bisa tahan tombol Shift sambil geser mouse.'
+            }
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all ${
+              isSelectMode
+                ? 'bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+            }`}
+          >
+            <BoxSelect size={13} />
+            <span className="hidden xl:inline">{isSelectMode ? 'Kotak Seleksi (Aktif)' : 'Kotak Seleksi'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const count = copySelectedTables();
+              if (count > 0) {
+                onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel (Ctrl+V)`);
+              } else {
+                onShowToast?.('Pilih tabel terlebih dahulu (klik atau tarik kotak seleksi)');
+              }
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs border border-slate-700/60 transition-all"
+            title="Salin tabel terpilih (Ctrl+C)"
+          >
+            <Copy size={13} />
+            <span className="hidden xl:inline">Salin</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const count = pasteTables();
+              if (count > 0) {
+                onShowToast?.(`✨ ${count} tabel berhasil ditempel ke sheet ini!`);
+              } else {
+                onShowToast?.('Belum ada tabel yang disalin. Salin tabel terlebih dahulu dengan Ctrl+C');
+              }
+            }}
+            disabled={!clipboard}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-all ${
+              clipboard
+                ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+                : 'opacity-40 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-600'
+            }`}
+            title={clipboard ? `Tempel ${clipboard.nodes.length} tabel ke sheet ini (Ctrl+V)` : 'Tempel tabel (Ctrl+V)'}
+          >
+            <ClipboardPaste size={13} />
+            <span className="hidden xl:inline">Tempel</span>
           </button>
 
           <div className="h-5 w-px bg-slate-800 mx-0.5" />
@@ -431,6 +496,56 @@ export const Toolbar: React.FC<Props> = ({
 
             {/* Grid Tools */}
             <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                onClick={() => {
+                  toggleSelectMode();
+                  setMobileMenuOpen(false);
+                  onShowToast?.(
+                    isSelectMode
+                      ? 'Mode Geser Canvas aktif'
+                      : 'Mode Kotak Seleksi aktif! Tarik kotak di atas tabel untuk memilih banyak tabel'
+                  );
+                }}
+                className={`flex items-center gap-2 p-2.5 rounded-xl border text-slate-200 ${
+                  isSelectMode ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200' : 'bg-slate-900 border-slate-800'
+                }`}
+              >
+                <BoxSelect size={14} className="text-indigo-400 shrink-0" />
+                <span>{isSelectMode ? 'Kotak Seleksi (Aktif)' : 'Kotak Seleksi'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const count = copySelectedTables();
+                  setMobileMenuOpen(false);
+                  if (count > 0) {
+                    onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel`);
+                  } else {
+                    onShowToast?.('Pilih tabel terlebih dahulu sebelum menyalin');
+                  }
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
+              >
+                <Copy size={14} className="text-amber-400 shrink-0" />
+                <span>Salin Tabel</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const count = pasteTables();
+                  setMobileMenuOpen(false);
+                  if (count > 0) {
+                    onShowToast?.(`✨ ${count} tabel berhasil ditempel!`);
+                  } else {
+                    onShowToast?.('Belum ada tabel yang disalin');
+                  }
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
+              >
+                <ClipboardPaste size={14} className="text-emerald-400 shrink-0" />
+                <span>Tempel Tabel</span>
+              </button>
+
               <button
                 onClick={() => {
                   onOpenMyDiagrams();

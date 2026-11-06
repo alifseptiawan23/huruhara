@@ -73,6 +73,15 @@ interface DiagramState {
 
   // Reset
   resetToSample: () => void;
+
+  // Clipboard & Selection (Copy / Paste across sheets & Rectangle selection)
+  clipboard: { nodes: Node<TableData>[]; edges: Edge[] } | null;
+  copySelectedTables: () => number;
+  pasteTables: () => number;
+  duplicateTable: (tableId: string) => void;
+  duplicateSelectedTables: () => number;
+  isSelectMode: boolean;
+  toggleSelectMode: () => void;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#ef4444', '#14b8a6'];
@@ -393,6 +402,140 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         edges: initialEdges,
       })),
     });
+  },
+
+  // ── Clipboard & Selection ───────────────────────────────────────────────────
+  clipboard: null,
+  isSelectMode: false,
+  toggleSelectMode: () => set((s) => ({ isSelectMode: !s.isSelectMode })),
+
+  copySelectedTables: () => {
+    const { sheets, activeSheetId } = get();
+    const activeSheet = sheets.find((sh) => sh.id === activeSheetId) ?? sheets[0];
+    const selectedNodes = activeSheet.nodes.filter((n) => n.selected);
+    if (selectedNodes.length === 0) return 0;
+
+    const selectedIds = new Set(selectedNodes.map((n) => n.id));
+    // Clone internal edges connecting the selected nodes
+    const internalEdges = activeSheet.edges.filter(
+      (e) => selectedIds.has(e.source) && selectedIds.has(e.target)
+    );
+
+    const clonedNodes = JSON.parse(JSON.stringify(selectedNodes));
+    const clonedEdges = JSON.parse(JSON.stringify(internalEdges));
+
+    set({ clipboard: { nodes: clonedNodes, edges: clonedEdges } });
+    return selectedNodes.length;
+  },
+
+  pasteTables: () => {
+    const { clipboard, sheets, activeSheetId } = get();
+    if (!clipboard || clipboard.nodes.length === 0) return 0;
+
+    const idMap: Record<string, string> = {};
+    const timestamp = Date.now();
+
+    // Generate new unique IDs & offset position for pasted nodes
+    const newNodes: Node<TableData>[] = clipboard.nodes.map((node, idx) => {
+      const newId = `table-${timestamp}-${idx}`;
+      idMap[node.id] = newId;
+
+      return {
+        ...node,
+        id: newId,
+        selected: true,
+        position: {
+          x: node.position.x + 35,
+          y: node.position.y + 35,
+        },
+        data: {
+          ...node.data,
+          id: newId,
+          name: `${node.data.name}_copy`,
+          columns: (node.data.columns || []).map((col: Column, cIdx: number) => ({
+            ...col,
+            id: `col-${timestamp}-${idx}-${cIdx}`,
+          })),
+        },
+      };
+    });
+
+    // Remap copied internal edges to the new node IDs
+    const newEdges: Edge[] = clipboard.edges
+      .filter((edge) => idMap[edge.source] && idMap[edge.target])
+      .map((edge, idx) => ({
+        ...edge,
+        id: `edge-${timestamp}-${idx}`,
+        source: idMap[edge.source],
+        target: idMap[edge.target],
+        selected: false,
+      }));
+
+    // Insert into current active sheet (allowing pasting to sheet 2, sheet 3, etc.)
+    set({
+      sheets: updateActive(sheets, activeSheetId, (sh) => ({
+        ...sh,
+        nodes: [
+          ...sh.nodes.map((n) => ({ ...n, selected: false })),
+          ...newNodes,
+        ],
+        edges: [...sh.edges, ...newEdges],
+      })),
+      // Update clipboard positions so successive pastes cascade nicely
+      clipboard: {
+        nodes: newNodes,
+        edges: newEdges,
+      },
+    });
+
+    return newNodes.length;
+  },
+
+  duplicateTable: (tableId: string) => {
+    const { sheets, activeSheetId } = get();
+    const activeSheet = sheets.find((sh) => sh.id === activeSheetId) ?? sheets[0];
+    const node = activeSheet.nodes.find((n) => n.id === tableId);
+    if (!node) return;
+
+    const timestamp = Date.now();
+    const newId = `table-${timestamp}`;
+
+    const newNode: Node<TableData> = {
+      ...node,
+      id: newId,
+      selected: true,
+      position: {
+        x: node.position.x + 35,
+        y: node.position.y + 35,
+      },
+      data: {
+        ...node.data,
+        id: newId,
+        name: `${node.data.name}_copy`,
+        columns: (node.data.columns || []).map((col, idx) => ({
+          ...col,
+          id: `col-${timestamp}-${idx}`,
+        })),
+      },
+    };
+
+    set({
+      sheets: updateActive(sheets, activeSheetId, (sh) => ({
+        ...sh,
+        nodes: [
+          ...sh.nodes.map((n) => ({ ...n, selected: false })),
+          newNode,
+        ],
+      })),
+    });
+  },
+
+  duplicateSelectedTables: () => {
+    const count = get().copySelectedTables();
+    if (count > 0) {
+      get().pasteTables();
+    }
+    return count;
   },
 }));
 

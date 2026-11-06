@@ -3,7 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { DataType, TableData } from '../types/schema';
 import { useDiagramStore, selectActiveEdges } from '../store/useDiagramStore';
-import { Key, Plus, Trash2 } from 'lucide-react';
+import { Key, Plus, Trash2, Copy } from 'lucide-react';
 
 const COMMON_TYPES: DataType[] = [
   'uuid', 'bigint', 'integer', 'varchar(255)', 'text',
@@ -15,7 +15,16 @@ const PRESET_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#
 
 const TableNodeInner: React.FC<NodeProps> = ({ id, data }) => {
   const tableData = data as unknown as TableData;
-  const { updateTableName, updateTableColor, deleteTable, addColumn, updateColumn, deleteColumn, setHoveredTable } = useDiagramStore();
+  const {
+    updateTableName,
+    updateTableColor,
+    deleteTable,
+    addColumn,
+    updateColumn,
+    deleteColumn,
+    setHoveredTable,
+    duplicateTable,
+  } = useDiagramStore();
   const hoveredTableId = useDiagramStore((s) => s.hoveredTableId);
   const edges = useDiagramStore(selectActiveEdges);
 
@@ -60,10 +69,28 @@ const TableNodeInner: React.FC<NodeProps> = ({ id, data }) => {
           />
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => addColumn(id)} className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors" title="Tambah kolom">
+          <button
+            onClick={() => addColumn(id)}
+            className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors"
+            title="Tambah kolom"
+          >
             <Plus size={14} />
           </button>
-          <button onClick={() => deleteTable(id)} className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded transition-colors" title="Hapus tabel">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              duplicateTable(id);
+            }}
+            className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors"
+            title="Duplikasi tabel (Ctrl+D)"
+          >
+            <Copy size={13} />
+          </button>
+          <button
+            onClick={() => deleteTable(id)}
+            className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded transition-colors"
+            title="Hapus tabel"
+          >
             <Trash2 size={14} />
           </button>
         </div>

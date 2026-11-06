@@ -6,6 +6,7 @@ import {
   MiniMap,
   BackgroundVariant,
   useReactFlow,
+  SelectionMode,
 } from '@xyflow/react';
 import type { NodeTypes, EdgeTypes, Viewport } from '@xyflow/react';
 import { useDiagramStore, selectActiveSheet, selectActiveEdges } from './store/useDiagramStore';
@@ -47,12 +48,21 @@ export const App: React.FC = () => {
   const initializeAuth = useAuthStore((s) => s.initialize);
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
+  const isSelectMode = useDiagramStore((s) => s.isSelectMode);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((curr) => (curr === msg ? null : curr));
+    }, 2800);
+  }, []);
 
   // Initialize Supabase Auth session listener
   useEffect(() => {
@@ -90,18 +100,45 @@ export const App: React.FC = () => {
     [rfInstance]
   );
 
-  // Keyboard shortcuts (Ctrl+K / Ctrl+F for search)
+  // Keyboard shortcuts (Ctrl+K for search, Ctrl+C / Ctrl+V for copy-paste across sheets, Ctrl+D for duplicate)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        (activeEl && (activeEl as HTMLElement).isContentEditable);
+
+      if (isInput) return;
+
       const ctrl = e.ctrlKey || e.metaKey;
+
       if (ctrl && (e.key === 'k' || e.key === 'f')) {
         e.preventDefault();
         setIsSearchOpen(true);
+      } else if (ctrl && (e.key === 'c' || e.key === 'C')) {
+        const count = useDiagramStore.getState().copySelectedTables();
+        if (count > 0) {
+          e.preventDefault();
+          showToast(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Ctrl+V`);
+        }
+      } else if (ctrl && (e.key === 'v' || e.key === 'V')) {
+        const count = useDiagramStore.getState().pasteTables();
+        if (count > 0) {
+          e.preventDefault();
+          showToast(`✨ ${count} tabel berhasil ditempel ke ${activeSheet.name}!`);
+        }
+      } else if (ctrl && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        const count = useDiagramStore.getState().duplicateSelectedTables();
+        if (count > 0) {
+          showToast(`⚡ ${count} tabel diduplikasi!`);
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [showToast, activeSheet.name]);
 
   // Save viewport on sheet change
   useEffect(() => {
@@ -170,6 +207,7 @@ export const App: React.FC = () => {
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenMyDiagrams={() => setIsMyDiagramsOpen(true)}
+        onShowToast={showToast}
       />
 
       {/* Canvas + Split View */}
@@ -192,6 +230,10 @@ export const App: React.FC = () => {
             onlyRenderVisibleElements
             elevateNodesOnSelect
             deleteKeyCode={['Backspace', 'Delete']}
+            panOnDrag={isSelectMode ? [1, 2] : true}
+            selectionOnDrag={isSelectMode}
+            selectionMode={SelectionMode.Partial}
+            panOnScroll={true}
             className="bg-[#020617]"
             proOptions={{ hideAttribution: true }}
           >
@@ -242,6 +284,14 @@ export const App: React.FC = () => {
       />
       <ShareModal />
       <JoinRoomAuthModal />
+
+      {/* Floating Toast / Action HUD Pill */}
+      {toastMessage && (
+        <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-50 bg-[#0d1117]/95 border border-indigo-500/80 text-white px-4 py-2 rounded-full text-xs font-semibold shadow-2xl shadow-indigo-950 flex items-center gap-2 ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-2 duration-150 backdrop-blur-md">
+          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };
