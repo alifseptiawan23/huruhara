@@ -8,7 +8,7 @@ import {
   Users,
   Radio,
   Sparkles,
-  Edit3,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const ShareModal: React.FC = () => {
@@ -19,12 +19,9 @@ export const ShareModal: React.FC = () => {
     myProfile,
     collaborators,
     isConnected,
-    setMyName,
   } = useCollaborationStore();
 
   const [copied, setCopied] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [tempName, setTempName] = useState(myProfile.name);
 
   if (!isShareOpen) return null;
 
@@ -36,16 +33,8 @@ export const ShareModal: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       prompt('Salin link kolaborasi berikut:', shareUrl);
     }
-  };
-
-  const handleSaveName = () => {
-    if (tempName.trim()) {
-      setMyName(tempName.trim());
-    }
-    setEditingName(false);
   };
 
   return (
@@ -95,10 +84,10 @@ export const ShareModal: React.FC = () => {
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Share Link Box */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
               <span>Link Sesi Kolaborasi</span>
-              <span className="text-[10px] text-slate-500 font-normal">
-                (Siapapun dengan link ini dapat mengedit bersama)
+              <span className="text-[10px] text-amber-400 font-medium flex items-center gap-1">
+                <ShieldCheck size={12} /> Wajib Login Google
               </span>
             </label>
             <div className="flex items-center gap-2">
@@ -117,61 +106,45 @@ export const ShareModal: React.FC = () => {
                 <span>{copied ? 'Tersalin!' : 'Salin'}</span>
               </button>
             </div>
+            <p className="text-[11px] text-slate-500">
+              Siapapun yang membuka link ini akan diminta masuk dengan akun Google terlebih dahulu sebelum dapat melihat dan mengedit.
+            </p>
           </div>
 
           {/* Your Profile in this room */}
           <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md ring-2 ring-offset-2 ring-offset-[#0d1117]"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md ring-2 ring-offset-2 ring-offset-[#0d1117] overflow-hidden shrink-0"
                 style={{ backgroundColor: myProfile.color, borderColor: myProfile.color }}
               >
-                {myProfile.name.charAt(0).toUpperCase()}
+                {myProfile.avatar ? (
+                  <img src={myProfile.avatar} alt={myProfile.name} className="w-full h-full object-cover" />
+                ) : (
+                  myProfile.name.charAt(0).toUpperCase()
+                )}
               </div>
               <div>
                 <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider block">
-                  Identitas Anda di Sesi Ini
+                  Identitas Google Anda
                 </span>
-                {editingName ? (
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <input
-                      type="text"
-                      value={tempName}
-                      onChange={(e) => setTempName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
-                      className="text-xs bg-slate-800 text-white px-2 py-0.5 rounded border border-indigo-500 focus:outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleSaveName}
-                      className="text-[11px] px-2 py-0.5 rounded bg-indigo-600 text-white font-medium"
-                    >
-                      OK
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-white">{myProfile.name}</span>
-                    <button
-                      onClick={() => {
-                        setTempName(myProfile.name);
-                        setEditingName(true);
-                      }}
-                      className="text-slate-500 hover:text-slate-300 p-0.5"
-                      title="Ganti nama panggilan"
-                    >
-                      <Edit3 size={11} />
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white">{myProfile.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-medium">
+                    Terverifikasi
+                  </span>
+                </div>
+                {myProfile.email && (
+                  <span className="text-[11px] text-slate-400 block">{myProfile.email}</span>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
               <span
-                className="w-3 h-3 rounded-full"
+                className="w-3 h-3 rounded-full shrink-0"
                 style={{ backgroundColor: myProfile.color }}
               />
-              <span className="text-[11px]">Warna Kursor</span>
+              <span className="text-[11px] hidden sm:inline">Warna Kursor</span>
             </div>
           </div>
 
@@ -180,9 +153,9 @@ export const ShareModal: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                 <Users size={14} className="text-indigo-400" />
-                <span>Sedang Online ({collaborators.length})</span>
+                <span>Anggota Online ({collaborators.length})</span>
               </div>
-              <span className="text-[11px] text-slate-500">Live Supabase Presence</span>
+              <span className="text-[11px] text-slate-500">Live Realtime Sync</span>
             </div>
 
             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
@@ -191,26 +164,31 @@ export const ShareModal: React.FC = () => {
                   key={user.id}
                   className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/80 text-xs"
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0 overflow-hidden"
                       style={{ backgroundColor: user.color }}
                     >
                       {user.avatar ? (
                         <img
                           src={user.avatar}
                           alt={user.name}
-                          className="w-full h-full rounded-full object-cover"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
                         user.name.charAt(0).toUpperCase()
                       )}
                     </div>
-                    <span className="font-medium text-slate-200">
-                      {user.name} {user.isSelf && <span className="text-slate-500 font-normal">(Anda)</span>}
-                    </span>
+                    <div className="min-w-0">
+                      <div className="font-medium text-slate-200 truncate">
+                        {user.name} {user.isSelf && <span className="text-slate-500 font-normal">(Anda)</span>}
+                      </div>
+                      {user.email && (
+                        <div className="text-[10px] text-slate-500 truncate">{user.email}</div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span className="text-[10px] text-emerald-400 font-medium">Aktif</span>
                   </div>
@@ -223,7 +201,7 @@ export const ShareModal: React.FC = () => {
           <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-900/40 flex items-start gap-2.5 text-xs text-slate-400">
             <Sparkles size={16} className="text-indigo-400 shrink-0 mt-0.5" />
             <div className="leading-relaxed text-[11px]">
-              Setiap perubahan yang Anda atau tim lakukan (menambah tabel, menggeser node, mengubah relasi) akan otomatis tersinkronisasi ke seluruh layar dalam hitungan milidetik.
+              Setiap tabel yang Anda geser, tambah, atau relasikan akan otomatis tersinkronisasi langsung ke layar seluruh anggota yang terhubung.
             </div>
           </div>
         </div>
@@ -231,4 +209,3 @@ export const ShareModal: React.FC = () => {
     </div>
   );
 };
-

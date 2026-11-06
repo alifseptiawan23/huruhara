@@ -22,6 +22,7 @@ import { AuthModal } from './components/AuthModal';
 import { MyDiagramsModal } from './components/MyDiagramsModal';
 import { MultiplayerCursors } from './components/MultiplayerCursors';
 import { ShareModal } from './components/ShareModal';
+import { JoinRoomAuthModal } from './components/JoinRoomAuthModal';
 import { useCollaborationStore } from './store/useCollaborationStore';
 
 const nodeTypes: NodeTypes = { tableNode: TableNode };
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
   const rawEdges = useDiagramStore(selectActiveEdges);
   const initializeAuth = useAuthStore((s) => s.initialize);
   const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.loading);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -60,11 +62,12 @@ export const App: React.FC = () => {
 
   // Initialize Real-time Collaboration (Canva/Figma style)
   useEffect(() => {
+    if (authLoading) return;
     useCollaborationStore.getState().initSession(undefined, user);
     return () => {
       useCollaborationStore.getState().cleanup();
     };
-  }, [user]);
+  }, [user, authLoading]);
 
   // Live mouse cursor throttling (broadcast to peers)
   const lastCursorSentRef = React.useRef(0);
@@ -238,6 +241,7 @@ export const App: React.FC = () => {
         onOpenAuth={() => setIsAuthOpen(true)}
       />
       <ShareModal />
+      <JoinRoomAuthModal />
     </div>
   );
 };

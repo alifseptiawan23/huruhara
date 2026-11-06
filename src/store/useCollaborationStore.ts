@@ -9,6 +9,7 @@ export interface Collaborator {
   name: string;
   color: string;
   avatar?: string;
+  email?: string;
   isSelf?: boolean;
 }
 
@@ -32,17 +33,6 @@ const COLLAB_COLORS = [
   '#14b8a6', // Teal
 ];
 
-const GUEST_NAMES = [
-  'Arsitek Kilat',
-  'Pengrajin Skema',
-  'Panda Kreatif',
-  'Falcon Biru',
-  'Kancil Cepat',
-  'Bintang Kode',
-  'Singa Data',
-  'Elang Digital',
-];
-
 interface CollaborationState {
   roomId: string;
   myProfile: Collaborator;
@@ -51,12 +41,13 @@ interface CollaborationState {
   channel: RealtimeChannel | null;
   isConnected: boolean;
   isShareOpen: boolean;
+  needsAuthToJoin: boolean;
 
   setRoomId: (roomId: string) => void;
   setIsShareOpen: (open: boolean) => void;
-  setMyName: (name: string) => void;
   initSession: (customRoomId?: string, user?: User | null) => void;
   startSharing: (preferredRoomId?: string, user?: User | null) => void;
+  leaveRoom: () => void;
   broadcastCursor: (x: number, y: number) => void;
   broadcastDiagramChange: (sheets: Sheet[], activeSheetId: string) => void;
   cleanup: () => void;
@@ -77,13 +68,12 @@ const getRandomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.len
 export const useCollaborationStore = create<CollaborationState>((set, get) => {
   const myId = getClientId();
   const defaultColor = getRandomItem(COLLAB_COLORS);
-  const defaultName = getRandomItem(GUEST_NAMES);
 
   return {
     roomId: '',
     myProfile: {
       id: myId,
-      name: defaultName,
+      name: 'User',
       color: defaultColor,
       isSelf: true,
     },
@@ -92,25 +82,15 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
     channel: null,
     isConnected: false,
     isShareOpen: false,
+    needsAuthToJoin: false,
 
     setRoomId: (roomId: string) => set({ roomId }),
     setIsShareOpen: (open: boolean) => set({ isShareOpen: open }),
 
-    setMyName: (name: string) => {
-      const { myProfile, channel } = get();
-      const updated = { ...myProfile, name };
-      set({ myProfile: updated });
-      if (channel) {
-        channel.track({
-          id: updated.id,
-          name: updated.name,
-          color: updated.color,
-          avatar: updated.avatar,
-        });
-      }
-    },
-
     startSharing: (preferredRoomId?: string, user?: User | null) => {
+      // Must be logged in to share
+      if (!user) return;
+
       let currentRoom = get().roomId;
       if (!currentRoom) {
         currentRoom = preferredRoomId || `collab_${Math.random().toString(36).substring(2, 9)}`;
@@ -119,20 +99,33 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       set({ isShareOpen: true });
     },
 
+    leaveRoom: () => {
+      // Clear room parameter from URL
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete('room');
+      window.history.replaceState({}, '', currentUrl.toString());
+
+      get().cleanup();
+      set({
+        roomId: '',
+        needsAuthToJoin: false,
+      });
+    },
+
     initSession: (customRoomId?: string, user?: User | null) => {
-      // Remove any previously created channel with the same or old room
+      // 1. Remove any previously created channel with the same or old room
       supabase.getChannels().forEach((ch) => {
         if (ch.topic.includes('drawsql_room')) {
           supabase.removeChannel(ch);
         }
       });
 
-      // Determine Room ID from param or URL search
+      // 2. Determine target room
       const urlParams = new URLSearchParams(window.location.search);
       const urlRoom = urlParams.get('room');
       const targetRoom = customRoomId || urlRoom;
 
-      // If no room is specified in URL or param, stay in private mode
+      // If no room is requested in URL or param, stay in private mode
       if (!targetRoom) {
         set({
           roomId: '',
@@ -140,9 +133,27 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           collaborators: [],
           cursors: {},
           channel: null,
+          needsAuthToJoin: false,
         });
         return;
       }
+
+      // If room is requested BUT user is not logged in:
+      // LOCK THE ROOM and show auth gate modal!
+      if (!user) {
+        set({
+          roomId: targetRoom,
+          isConnected: false,
+          collaborators: [],
+          cursors: {},
+          channel: null,
+          needsAuthToJoin: true,
+        });
+        return;
+      }
+
+      // User is authenticated! Clear the lock flag
+      set({ needsAuthToJoin: false });
 
       // Update URL search query without full reload
       const currentUrl = new URL(window.location.href);
@@ -151,23 +162,39 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
         window.history.replaceState({}, '', currentUrl.toString());
       }
 
-      // Configure current profile with Google info if logged in
-      const currentProfile = get().myProfile;
+      // Configure verified Google identity
       const userName =
-        user?.user_metadata?.full_name ||
-        user?.user_metadata?.name ||
-        user?.email?.split('@')[0] ||
-        currentProfile.name;
-      const userAvatar = user?.user_metadata?.avatar_url;
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split('@')[0] ||
+        'User';
+      const userAvatar = user.user_metadata?.avatar_url;
 
       const myProfile: Collaborator = {
-        ...currentProfile,
+        id: user.id || myId,
         name: userName,
         avatar: userAvatar,
+        email: user.email,
+        color: defaultColor,
         isSelf: true,
       };
 
       set({ roomId: targetRoom, myProfile });
+
+      // If targetRoom is from a saved cloud diagram, load it if available
+      if (targetRoom.startsWith('diag_')) {
+        const diagId = targetRoom.replace('diag_', '');
+        supabase
+          .from('diagrams')
+          .select('*')
+          .eq('id', diagId)
+          .single()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              useDiagramStore.getState().loadCloudDiagram(data.id, data.title, data.sheets, data.active_sheet_id);
+            }
+          });
+      }
 
       // Create Supabase Realtime Channel
       const roomChannel = supabase.channel(`drawsql_room:${targetRoom}`, {
@@ -188,9 +215,10 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
               if (p.id) {
                 activeList.push({
                   id: p.id,
-                  name: p.name || 'Anonymous',
+                  name: p.name || 'User',
                   color: p.color || '#8b5cf6',
                   avatar: p.avatar,
+                  email: p.email,
                   isSelf: p.id === myProfile.id,
                 });
               }
@@ -211,9 +239,10 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
               if (p.id && !next.some((u) => u.id === p.id)) {
                 next.push({
                   id: p.id,
-                  name: p.name || 'Anonymous',
+                  name: p.name || 'User',
                   color: p.color || '#8b5cf6',
                   avatar: p.avatar,
+                  email: p.email,
                   isSelf: p.id === myProfile.id,
                 });
               }
@@ -256,8 +285,35 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       // 3. Broadcast: Realtime Schema / Diagram edits
       roomChannel.on('broadcast', { event: 'diagram_update' }, ({ payload }) => {
         if (!payload || payload.senderId === myProfile.id) return;
-        // Apply remote changes cleanly to diagram store
         useDiagramStore.getState().applyRemoteUpdate(payload.sheets, payload.activeSheetId);
+      });
+
+      // 4. Broadcast: Request canvas state when a new peer joins
+      roomChannel.on('broadcast', { event: 'request_state' }, ({ payload }) => {
+        if (payload && payload.requesterId !== myProfile.id) {
+          const { sheets, activeSheetId, diagramTitle } = useDiagramStore.getState();
+          // Send active canvas state to newcomer
+          roomChannel.send({
+            type: 'broadcast',
+            event: 'sync_state',
+            payload: {
+              targetId: payload.requesterId,
+              sheets,
+              activeSheetId,
+              diagramTitle,
+            },
+          });
+        }
+      });
+
+      // 5. Broadcast: Receive initial canvas state from existing peer
+      roomChannel.on('broadcast', { event: 'sync_state' }, ({ payload }) => {
+        if (payload && (!payload.targetId || payload.targetId === myProfile.id)) {
+          useDiagramStore.getState().applyRemoteUpdate(payload.sheets, payload.activeSheetId);
+          if (payload.diagramTitle) {
+            useDiagramStore.setState({ diagramTitle: payload.diagramTitle });
+          }
+        }
       });
 
       // Subscribe & begin presence tracking
@@ -269,7 +325,15 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
             name: myProfile.name,
             color: myProfile.color,
             avatar: myProfile.avatar,
+            email: myProfile.email,
             onlineAt: new Date().toISOString(),
+          });
+
+          // Request latest canvas state from any peer already in the room!
+          roomChannel.send({
+            type: 'broadcast',
+            event: 'request_state',
+            payload: { requesterId: myProfile.id },
           });
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           set({ isConnected: false });
@@ -278,8 +342,8 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
     },
 
     broadcastCursor: (x: number, y: number) => {
-      const { channel, isConnected, myProfile } = get();
-      if (!channel || !isConnected) return;
+      const { channel, isConnected, myProfile, roomId } = get();
+      if (!channel || !isConnected || !roomId) return;
 
       channel.send({
         type: 'broadcast',
@@ -295,8 +359,8 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
     },
 
     broadcastDiagramChange: (sheets: Sheet[], activeSheetId: string) => {
-      const { channel, isConnected, myProfile } = get();
-      if (!channel || !isConnected) return;
+      const { channel, isConnected, myProfile, roomId } = get();
+      if (!channel || !isConnected || !roomId) return;
 
       channel.send({
         type: 'broadcast',
@@ -324,4 +388,3 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
 setCollabBroadcaster((sheets, activeSheetId) => {
   useCollaborationStore.getState().broadcastDiagramChange(sheets, activeSheetId);
 });
-
