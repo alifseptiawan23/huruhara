@@ -80,21 +80,31 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      const dismissed = getDismissedCollabIds(user.id);
-      const visited = getVisitedProjectIds(user.id);
+
+      // Cloud user metadata (persists per account across all devices!)
+      const cloudDismissed: string[] = user.user_metadata?.dismissed_diagrams || [];
+      const cloudCollab: string[] = user.user_metadata?.collab_diagrams || [];
+
+      // Local storage fallback
+      const localDismissed = getDismissedCollabIds(user.id);
+      const localVisited = getVisitedProjectIds(user.id);
       const userEmail = (user.email || '').toLowerCase();
+
+      // Combined dismissed & collab sets
+      const allDismissed = new Set([...cloudDismissed, ...localDismissed]);
+      const allCollab = new Set([...cloudCollab, ...localVisited]);
 
       // STRICT FILTER:
       // Only show:
       // 1. Projects created by this user (d.user_id === user.id)
       // 2. OR collaboration projects that this user has visited/joined or been invited to by email
       const visible = (data || []).filter((d) => {
-        if (dismissed.includes(d.id)) return false;
+        if (allDismissed.has(d.id)) return false;
         if (d.user_id === user.id) return true;
-        // Check if user was explicitly invited as allowed editor
+        // Check if user was explicitly invited as allowed editor or joined
         const allowed: string[] = d.sheets?.[0]?.projectSettings?.allowedEditors || [];
         const isAllowedEditor = userEmail && allowed.some((em) => em.toLowerCase() === userEmail);
-        const hasVisited = visited.includes(d.id);
+        const hasVisited = allCollab.has(d.id);
         return isAllowedEditor || hasVisited;
       });
       setDiagrams(visible);
@@ -117,6 +127,16 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
     if (user && diag.user_id !== user.id) {
       removeDismissedCollabId(user.id, diag.id);
       addVisitedProjectId(user.id, diag.id);
+
+      // Restore to user account metadata if previously dismissed
+      const cloudDismissed: string[] = user.user_metadata?.dismissed_diagrams || [];
+      const cloudCollab: string[] = user.user_metadata?.collab_diagrams || [];
+      if (cloudDismissed.includes(diag.id) || !cloudCollab.includes(diag.id)) {
+        useAuthStore.getState().updateUserMetadata({
+          dismissed_diagrams: cloudDismissed.filter((item) => item !== diag.id),
+          collab_diagrams: cloudCollab.includes(diag.id) ? cloudCollab : [...cloudCollab, diag.id],
+        });
+      }
     }
     loadCloudDiagram(diag.id, diag.title, diag.sheets, diag.active_sheet_id);
     useCollaborationStore.getState().initSession(diag.id, user);
@@ -150,11 +170,11 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
     }
   };
 
-  const handleRemoveCollab = (id: string, title: string, e: React.MouseEvent) => {
+  const handleRemoveCollab = async (id: string, title: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (
       !confirm(
-        `Hapus proyek kolaborasi "${title}" dari daftar Anda?\n\n(Proyek asli milik pembuat tidak akan terhapus dari cloud, hanya disingkirkan dari daftar Anda agar tidak menumpuk)`
+        `Hapus proyek kolaborasi "${title}" dari penyimpanan akun Anda?\n\n(Proyek asli milik pembuat tidak akan terhapus. Proyek ini hanya dihapus permanen dari akun Anda agar tidak menumpuk saat Anda login lagi)`
       )
     ) {
       return;
@@ -162,6 +182,17 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
     if (user) {
       addDismissedCollabId(user.id, id);
       removeVisitedProjectId(user.id, id);
+
+      // Persist permanently to Supabase User Account Cloud!
+      const cloudDismissed: string[] = user.user_metadata?.dismissed_diagrams || [];
+      const cloudCollab: string[] = user.user_metadata?.collab_diagrams || [];
+      const updatedDismissed = cloudDismissed.includes(id) ? cloudDismissed : [...cloudDismissed, id];
+      const updatedCollab = cloudCollab.filter((item) => item !== id);
+
+      useAuthStore.getState().updateUserMetadata({
+        dismissed_diagrams: updatedDismissed,
+        collab_diagrams: updatedCollab,
+      });
     }
     setDiagrams((prev) => prev.filter((d) => d.id !== id));
     if (diagramId === id) {

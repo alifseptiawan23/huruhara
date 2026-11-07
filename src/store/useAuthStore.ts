@@ -8,6 +8,7 @@ interface AuthState {
   loading: boolean;
   initialize: () => () => void;
   signOut: () => Promise<void>;
+  updateUserMetadata: (metadata: Record<string, any>) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -36,6 +37,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     await supabase.auth.signOut();
     set({ user: null, session: null });
+  },
+
+  updateUserMetadata: async (metadata: Record<string, any>) => {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: metadata,
+      });
+      if (!error && data.user) {
+        set({ user: data.user });
+      }
+    } catch (err) {
+      console.error('Failed to update user metadata:', err);
+    }
   },
 }));
 

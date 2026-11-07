@@ -3,6 +3,7 @@ import type { RealtimeChannel, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Sheet } from '../types/schema';
 import { useDiagramStore, setCollabBroadcaster, setCollabDelegate } from './useDiagramStore';
+import { useAuthStore } from './useAuthStore';
 
 export type UserProjectRole = 'owner' | 'editor' | 'viewer';
 
@@ -271,17 +272,16 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
             if (!error && data) {
               const isOwner = user && data.user_id === user.id;
 
-              // Track collaboration diagram visited by user
+              // Track collaboration diagram visited by user in their account metadata
               if (!isOwner && user) {
-                try {
-                  const key = `visited_projects_${user.id}`;
-                  const raw = localStorage.getItem(key);
-                  const list: string[] = raw ? JSON.parse(raw) : [];
-                  if (!list.includes(targetRoom)) {
-                    list.push(targetRoom);
-                    localStorage.setItem(key, JSON.stringify(list));
-                  }
-                } catch {}
+                const currentCollab: string[] = user.user_metadata?.collab_diagrams || [];
+                const currentDismissed: string[] = user.user_metadata?.dismissed_diagrams || [];
+                if (!currentCollab.includes(targetRoom)) {
+                  useAuthStore.getState().updateUserMetadata({
+                    collab_diagrams: [...currentCollab, targetRoom],
+                    dismissed_diagrams: currentDismissed.filter((id) => id !== targetRoom),
+                  });
+                }
               }
 
               const settings = data.sheets?.[0]?.projectSettings;
