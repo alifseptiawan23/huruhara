@@ -11,6 +11,31 @@ interface Props {
   onOpenAuth: () => void;
 }
 
+const getDismissedCollabIds = (userId: string): string[] => {
+  try {
+    const raw = localStorage.getItem(`dismissed_collab_${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const addDismissedCollabId = (userId: string, diagramId: string) => {
+  try {
+    const current = getDismissedCollabIds(userId);
+    if (!current.includes(diagramId)) {
+      localStorage.setItem(`dismissed_collab_${userId}`, JSON.stringify([...current, diagramId]));
+    }
+  } catch {}
+};
+
+const removeDismissedCollabId = (userId: string, diagramId: string) => {
+  try {
+    const current = getDismissedCollabIds(userId);
+    localStorage.setItem(`dismissed_collab_${userId}`, JSON.stringify(current.filter((id) => id !== diagramId)));
+  } catch {}
+};
+
 export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }) => {
   const { user } = useAuthStore();
   const { diagramId, loadCloudDiagram, newDiagram } = useDiagramStore();
@@ -18,6 +43,7 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
   const [diagrams, setDiagrams] = useState<DiagramRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filterTab, setFilterTab] = useState<'all' | 'mine' | 'collab'>('all');
 
   const fetchDiagrams = async () => {
     if (!user) return;
@@ -29,7 +55,9 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setDiagrams(data || []);
+      const dismissed = getDismissedCollabIds(user.id);
+      const visible = (data || []).filter((d) => d.user_id === user.id || !dismissed.includes(d.id));
+      setDiagrams(visible);
     } catch (err) {
       console.error('Error fetching diagrams:', err);
     } finally {
@@ -46,6 +74,9 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
   if (!isOpen) return null;
 
   const handleSelect = (diag: DiagramRecord) => {
+    if (user && diag.user_id !== user.id) {
+      removeDismissedCollabId(user.id, diag.id);
+    }
     loadCloudDiagram(diag.id, diag.title, diag.sheets, diag.active_sheet_id);
     useCollaborationStore.getState().initSession(diag.id, user);
     onClose();
@@ -58,7 +89,7 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Yakin ingin menghapus diagram ini?')) return;
+    if (!confirm('Yakin ingin menghapus diagram ini secara permanen dari cloud?')) return;
     setDeletingId(id);
     try {
       const { error } = await supabase.from('diagrams').delete().eq('id', id);
@@ -73,6 +104,33 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
       setDeletingId(null);
     }
   };
+
+  const handleRemoveCollab = (id: string, title: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (
+      !confirm(
+        `Hapus proyek kolaborasi "${title}" dari daftar Anda?\n\n(Proyek asli milik pembuat tidak akan terhapus dari cloud, hanya disingkirkan dari daftar Anda agar tidak menumpuk)`
+      )
+    ) {
+      return;
+    }
+    if (user) {
+      addDismissedCollabId(user.id, id);
+    }
+    setDiagrams((prev) => prev.filter((d) => d.id !== id));
+    if (diagramId === id) {
+      newDiagram();
+    }
+  };
+
+  const myCount = diagrams.filter((d) => d.user_id === user?.id).length;
+  const collabCount = diagrams.filter((d) => d.user_id !== user?.id).length;
+
+  const filteredDiagrams = diagrams.filter((d) => {
+    if (filterTab === 'mine') return d.user_id === user?.id;
+    if (filterTab === 'collab') return d.user_id !== user?.id;
+    return true;
+  });
 
   return (
     <div
@@ -128,7 +186,46 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
               <span className="text-xs">Memuat diagram...</span>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {/* Category Filter Tabs */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('all')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    filterTab === 'all'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  Semua ({diagrams.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('mine')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    filterTab === 'mine'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Crown size={12} className={filterTab === 'mine' ? 'text-white' : 'text-amber-400'} />
+                  <span>Milik Saya ({myCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('collab')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    filterTab === 'collab'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Users size={12} className={filterTab === 'collab' ? 'text-white' : 'text-indigo-400'} />
+                  <span>Kolaborasi ({collabCount})</span>
+                </button>
+              </div>
+
               <button
                 onClick={handleNew}
                 className="w-full flex items-center gap-3 p-3 rounded-xl border border-dashed border-slate-700 hover:border-indigo-500/80 bg-slate-900/40 hover:bg-indigo-600/10 text-slate-300 hover:text-white transition-all text-xs font-semibold group"
@@ -139,12 +236,16 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
                 <span>Buat Diagram Baru (Blank Schema)</span>
               </button>
 
-              {diagrams.length === 0 ? (
+              {filteredDiagrams.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-500">
-                  Belum ada diagram yang tersimpan. Klik tombol Simpan di toolbar untuk menyimpan proyek Anda saat ini!
+                  {filterTab === 'collab'
+                    ? 'Belum ada proyek kolaborasi yang Anda ikuti.'
+                    : filterTab === 'mine'
+                    ? 'Belum ada diagram yang Anda buat.'
+                    : 'Belum ada diagram yang tersimpan. Klik tombol Simpan di toolbar untuk menyimpan proyek Anda!'}
                 </div>
               ) : (
-                diagrams.map((d) => {
+                filteredDiagrams.map((d) => {
                   const isCurrent = d.id === diagramId;
                   const isOwner = d.user_id === user.id;
                   const ownerName =
@@ -216,12 +317,18 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
                             onClick={(e) => handleDelete(d.id, e)}
                             disabled={deletingId === d.id}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title="Hapus diagram"
+                            title="Hapus proyek permanen dari cloud"
                           >
                             {deletingId === d.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                           </button>
                         ) : (
-                          <span className="text-[10px] text-slate-500 italic px-1">Tamu</span>
+                          <button
+                            onClick={(e) => handleRemoveCollab(d.id, d.title, e)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Hapus proyek kolaborasi ini dari daftar Anda agar tidak menumpuk"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         )}
                       </div>
                     </div>
