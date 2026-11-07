@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import type { Sheet } from '../types/schema';
 import { useDiagramStore, setCollabBroadcaster } from './useDiagramStore';
 
+export type UserProjectRole = 'owner' | 'editor' | 'viewer';
+
 export interface Collaborator {
   id: string;
   name: string;
@@ -11,6 +13,7 @@ export interface Collaborator {
   avatar?: string;
   email?: string;
   isSelf?: boolean;
+  role?: UserProjectRole;
 }
 
 export interface CursorPosition {
@@ -35,6 +38,9 @@ const COLLAB_COLORS = [
 
 interface CollaborationState {
   roomId: string;
+  projectOwnerId: string | null;
+  currentUserRole: UserProjectRole;
+  shareRoleSetting: 'editor' | 'viewer';
   myProfile: Collaborator;
   collaborators: Collaborator[];
   cursors: Record<string, CursorPosition>;
@@ -45,12 +51,14 @@ interface CollaborationState {
 
   setRoomId: (roomId: string) => void;
   setIsShareOpen: (open: boolean) => void;
+  setShareRoleSetting: (role: 'editor' | 'viewer') => void;
   initSession: (customRoomId?: string, user?: User | null) => void;
   startSharing: (preferredRoomId?: string, user?: User | null) => void;
   leaveRoom: () => void;
   broadcastCursor: (x: number, y: number) => void;
   broadcastDiagramChange: (sheets: Sheet[], activeSheetId: string) => void;
   broadcastTitleChange: (newTitle: string) => void;
+  broadcastShareRoleChange: (newRole: 'editor' | 'viewer') => void;
   cleanup: () => void;
 }
 
@@ -72,11 +80,15 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
 
   return {
     roomId: '',
+    projectOwnerId: null,
+    currentUserRole: 'owner',
+    shareRoleSetting: 'editor',
     myProfile: {
       id: myId,
       name: 'User',
       color: defaultColor,
       isSelf: true,
+      role: 'owner',
     },
     collaborators: [],
     cursors: {},
@@ -87,6 +99,10 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
 
     setRoomId: (roomId: string) => set({ roomId }),
     setIsShareOpen: (open: boolean) => set({ isShareOpen: open }),
+    setShareRoleSetting: (role: 'editor' | 'viewer') => {
+      set({ shareRoleSetting: role });
+      get().broadcastShareRoleChange(role);
+    },
 
     startSharing: (preferredRoomId?: string, user?: User | null) => {
       // Must be logged in to share
@@ -197,6 +213,25 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           .single()
           .then(({ data, error }) => {
             if (!error && data) {
+              const isOwner = user && data.user_id === user.id;
+              const urlRole = urlParams.get('role');
+              let role: UserProjectRole = 'editor';
+              if (isOwner) {
+                role = 'owner';
+              } else if (urlRole === 'viewer') {
+                role = 'viewer';
+              } else if (urlRole === 'editor') {
+                role = 'editor';
+              } else {
+                role = get().shareRoleSetting;
+              }
+
+              set((s) => ({
+                projectOwnerId: data.user_id,
+                currentUserRole: role,
+                myProfile: { ...s.myProfile, role },
+              }));
+
               useDiagramStore.getState().loadCloudDiagram(data.id, data.title, data.sheets, data.active_sheet_id);
             }
           });
@@ -226,6 +261,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
                   avatar: p.avatar,
                   email: p.email,
                   isSelf: p.id === myProfile.id,
+                  role: p.role || (p.id === get().projectOwnerId ? 'owner' : 'editor'),
                 });
               }
             });
@@ -250,6 +286,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
                   avatar: p.avatar,
                   email: p.email,
                   isSelf: p.id === myProfile.id,
+                  role: p.role || (p.id === get().projectOwnerId ? 'owner' : 'editor'),
                 });
               }
             });
@@ -302,6 +339,19 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
         }
       });
 
+      // 3c. Broadcast: Role Permission update (e.g. owner toggled viewer/editor)
+      roomChannel.on('broadcast', { event: 'role_permission_update' }, ({ payload }) => {
+        if (!payload || !payload.shareRole) return;
+        set((s) => {
+          if (s.currentUserRole === 'owner') return { shareRoleSetting: payload.shareRole };
+          return {
+            currentUserRole: payload.shareRole,
+            shareRoleSetting: payload.shareRole,
+            myProfile: { ...s.myProfile, role: payload.shareRole },
+          };
+        });
+      });
+
       // 4. Broadcast: Request canvas state when a new peer joins
       roomChannel.on('broadcast', { event: 'request_state' }, ({ payload }) => {
         if (payload && payload.requesterId !== myProfile.id) {
@@ -340,6 +390,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
             color: myProfile.color,
             avatar: myProfile.avatar,
             email: myProfile.email,
+            role: get().currentUserRole,
             onlineAt: new Date().toISOString(),
           });
 
@@ -429,15 +480,37 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       }
     },
 
+    broadcastShareRoleChange: (newRole: 'editor' | 'viewer') => {
+      const { channel, isConnected, roomId } = get();
+      if (!channel || !isConnected || !roomId) return;
+
+      channel.send({
+        type: 'broadcast',
+        event: 'role_permission_update',
+        payload: {
+          shareRole: newRole,
+        },
+      });
+    },
+
     cleanup: () => {
       const { channel } = get();
       if (channel) {
         supabase.removeChannel(channel);
-        set({ channel: null, isConnected: false, collaborators: [], cursors: {} });
+        set({
+          channel: null,
+          isConnected: false,
+          collaborators: [],
+          cursors: {},
+          projectOwnerId: null,
+          currentUserRole: 'owner',
+        });
       }
     },
   };
 });
+
+export const selectIsReadOnly = (s: CollaborationState) => s.currentUserRole === 'viewer';
 
 // Register broadcaster so useDiagramStore auto-syncs local mutations
 setCollabBroadcaster((sheets, activeSheetId) => {

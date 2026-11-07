@@ -3,6 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { DataType, TableData } from '../types/schema';
 import { useDiagramStore, selectActiveEdges } from '../store/useDiagramStore';
+import { useCollaborationStore, selectIsReadOnly } from '../store/useCollaborationStore';
 import { Key, Plus, Trash2, Copy } from 'lucide-react';
 
 const COMMON_TYPES: DataType[] = [
@@ -27,6 +28,7 @@ const TableNodeInner: React.FC<NodeProps> = ({ id, data }) => {
   } = useDiagramStore();
   const hoveredTableId = useDiagramStore((s) => s.hoveredTableId);
   const edges = useDiagramStore(selectActiveEdges);
+  const isReadOnly = useCollaborationStore(selectIsReadOnly);
 
   const [showColorPicker, setShowColorPicker] = useState(false);
 
@@ -56,44 +58,53 @@ const TableNodeInner: React.FC<NodeProps> = ({ id, data }) => {
       >
         <div className="flex items-center gap-2 flex-1 mr-2">
           <span
-            className="w-2.5 h-2.5 rounded-full cursor-pointer hover:scale-125 transition-transform shrink-0"
+            className={`w-2.5 h-2.5 rounded-full shrink-0 transition-transform ${
+              isReadOnly ? 'cursor-default' : 'cursor-pointer hover:scale-125'
+            }`}
             style={{ backgroundColor: tableData.color }}
-            onClick={() => setShowColorPicker(!showColorPicker)}
+            onClick={() => !isReadOnly && setShowColorPicker(!showColorPicker)}
           />
           <input
             type="text"
             value={tableData.name}
+            readOnly={isReadOnly}
             onChange={(e) => updateTableName(id, e.target.value)}
-            className="bg-transparent font-bold text-sm text-white focus:outline-none focus:bg-slate-800/80 px-1 py-0.5 rounded w-full border border-transparent focus:border-slate-600 font-mono"
+            className={`bg-transparent font-bold text-sm text-white px-1 py-0.5 rounded w-full border font-mono ${
+              isReadOnly
+                ? 'cursor-default border-transparent focus:outline-none'
+                : 'focus:outline-none focus:bg-slate-800/80 border-transparent focus:border-slate-600'
+            }`}
             placeholder="table_name"
           />
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => addColumn(id)}
-            className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors"
-            title="Tambah kolom"
-          >
-            <Plus size={14} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              duplicateTable(id);
-            }}
-            className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors"
-            title="Duplikasi tabel (Ctrl+D)"
-          >
-            <Copy size={13} />
-          </button>
-          <button
-            onClick={() => deleteTable(id)}
-            className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded transition-colors"
-            title="Hapus tabel"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
+        {!isReadOnly && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => addColumn(id)}
+              className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors"
+              title="Tambah kolom"
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateTable(id);
+              }}
+              className="p-1 hover:bg-slate-700/60 rounded text-slate-400 hover:text-white transition-colors"
+              title="Duplikasi tabel (Ctrl+D)"
+            >
+              <Copy size={13} />
+            </button>
+            <button
+              onClick={() => deleteTable(id)}
+              className="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded transition-colors"
+              title="Hapus tabel"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Color picker */}
@@ -121,73 +132,117 @@ const TableNodeInner: React.FC<NodeProps> = ({ id, data }) => {
                 type="target"
                 position={Position.Left}
                 id={`${col.id}-target`}
-                className="!w-2.5 !h-2.5 !bg-indigo-500 hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 -left-1.5 !rounded-full transition-all cursor-crosshair"
-                title="Hubungkan relasi (kiri)"
+                isConnectable={!isReadOnly}
+                className={`!w-2.5 !h-2.5 !bg-indigo-500 -left-1.5 !rounded-full transition-all ${
+                  isReadOnly ? '!cursor-default' : 'hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 cursor-crosshair'
+                }`}
+                title={isReadOnly ? undefined : "Hubungkan relasi (kiri)"}
               />
               <Handle
                 type="source"
                 position={Position.Left}
                 id={`${col.id}-source-left`}
-                className="!w-2.5 !h-2.5 !bg-indigo-500 hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 -left-1.5 !rounded-full transition-all cursor-crosshair"
-                title="Tarik relasi ke kiri"
+                isConnectable={!isReadOnly}
+                className={`!w-2.5 !h-2.5 !bg-indigo-500 -left-1.5 !rounded-full transition-all ${
+                  isReadOnly ? '!cursor-default' : 'hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 cursor-crosshair'
+                }`}
+                title={isReadOnly ? undefined : "Tarik relasi ke kiri"}
               />
 
               <Handle
                 type="source"
                 position={Position.Right}
                 id={`${col.id}-source`}
-                className="!w-2.5 !h-2.5 !bg-indigo-500 hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 -right-1.5 !rounded-full transition-all cursor-crosshair"
-                title="Tarik relasi ke kanan"
+                isConnectable={!isReadOnly}
+                className={`!w-2.5 !h-2.5 !bg-indigo-500 -right-1.5 !rounded-full transition-all ${
+                  isReadOnly ? '!cursor-default' : 'hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 cursor-crosshair'
+                }`}
+                title={isReadOnly ? undefined : "Tarik relasi ke kanan"}
               />
               <Handle
                 type="target"
                 position={Position.Right}
                 id={`${col.id}-target-right`}
-                className="!w-2.5 !h-2.5 !bg-indigo-500 hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 -right-1.5 !rounded-full transition-all cursor-crosshair"
-                title="Hubungkan relasi dari kanan"
+                isConnectable={!isReadOnly}
+                className={`!w-2.5 !h-2.5 !bg-indigo-500 -right-1.5 !rounded-full transition-all ${
+                  isReadOnly ? '!cursor-default' : 'hover:!bg-cyan-400 hover:!scale-125 !border-2 !border-slate-900 cursor-crosshair'
+                }`}
+                title={isReadOnly ? undefined : "Hubungkan relasi dari kanan"}
               />
 
               {/* PK toggle */}
-              <button onClick={() => updateColumn(id, col.id, { isPrimaryKey: !col.isPrimaryKey })}
-                className={`p-0.5 rounded shrink-0 ${col.isPrimaryKey ? 'text-amber-400' : 'text-slate-700 hover:text-slate-500'}`}>
+              <button
+                onClick={() => !isReadOnly && updateColumn(id, col.id, { isPrimaryKey: !col.isPrimaryKey })}
+                disabled={isReadOnly}
+                className={`p-0.5 rounded shrink-0 ${
+                  col.isPrimaryKey ? 'text-amber-400' : 'text-slate-700 hover:text-slate-500'
+                } ${isReadOnly ? 'cursor-default' : ''}`}
+              >
                 <Key size={12} />
               </button>
 
               {/* Column name */}
-              <input type="text" value={col.name}
+              <input
+                type="text"
+                value={col.name}
+                readOnly={isReadOnly}
                 onChange={(e) => updateColumn(id, col.id, { name: e.target.value })}
-                className="bg-transparent text-slate-200 font-mono focus:outline-none focus:bg-slate-800 px-1 py-0.5 rounded flex-1 min-w-0 border border-transparent focus:border-slate-600 text-[11px]"
-                placeholder="column_name" />
+                className={`bg-transparent text-slate-200 font-mono px-1 py-0.5 rounded flex-1 min-w-0 border text-[11px] ${
+                  isReadOnly
+                    ? 'cursor-default border-transparent focus:outline-none'
+                    : 'focus:outline-none focus:bg-slate-800 border-transparent focus:border-slate-600'
+                }`}
+                placeholder="column_name"
+              />
 
               {/* Type selector */}
-              <select value={col.type} onChange={(e) => updateColumn(id, col.id, { type: e.target.value })}
-                className="bg-slate-800 text-slate-400 font-mono text-[10px] rounded px-1 py-0.5 border border-slate-700/60 focus:outline-none focus:border-indigo-500 max-w-[90px]">
+              <select
+                value={col.type}
+                disabled={isReadOnly}
+                onChange={(e) => updateColumn(id, col.id, { type: e.target.value })}
+                className={`bg-slate-800 text-slate-400 font-mono text-[10px] rounded px-1 py-0.5 border border-slate-700/60 max-w-[90px] ${
+                  isReadOnly ? 'cursor-default opacity-80' : 'focus:outline-none focus:border-indigo-500'
+                }`}
+              >
                 {COMMON_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 {!COMMON_TYPES.includes(col.type as DataType) && <option value={col.type}>{col.type}</option>}
               </select>
 
               {/* Nullable toggle */}
-              <button onClick={() => updateColumn(id, col.id, { isNullable: !col.isNullable })}
-                className={`text-[9px] font-mono px-1 py-0.5 rounded shrink-0 ${col.isNullable ? 'text-slate-600' : 'text-rose-400 font-bold'}`}
-                title={col.isNullable ? 'Nullable' : 'NOT NULL'}>
+              <button
+                onClick={() => !isReadOnly && updateColumn(id, col.id, { isNullable: !col.isNullable })}
+                disabled={isReadOnly}
+                className={`text-[9px] font-mono px-1 py-0.5 rounded shrink-0 ${
+                  col.isNullable ? 'text-slate-600' : 'text-rose-400 font-bold'
+                } ${isReadOnly ? 'cursor-default' : ''}`}
+                title={col.isNullable ? 'Nullable' : 'NOT NULL'}
+              >
                 {col.isNullable ? 'null' : 'NN'}
               </button>
 
               {/* Delete column */}
-              <button onClick={() => deleteColumn(id, col.id)}
-                className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-opacity shrink-0">
-                <Trash2 size={11} />
-              </button>
+              {!isReadOnly && (
+                <button
+                  onClick={() => deleteColumn(id, col.id)}
+                  className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-opacity shrink-0"
+                >
+                  <Trash2 size={11} />
+                </button>
+              )}
             </div>
           ))
         )}
       </div>
 
       {/* Footer */}
-      <button onClick={() => addColumn(id)}
-        className="w-full flex items-center justify-center gap-1 py-1.5 text-[11px] text-slate-600 hover:text-indigo-300 hover:bg-slate-800/40 rounded-b-xl transition-colors border-t border-slate-800/40">
-        <Plus size={12} /> Tambah Kolom
-      </button>
+      {!isReadOnly && (
+        <button
+          onClick={() => addColumn(id)}
+          className="w-full flex items-center justify-center gap-1 py-1.5 text-[11px] text-slate-600 hover:text-indigo-300 hover:bg-slate-800/40 rounded-b-xl transition-colors border-t border-slate-800/40"
+        >
+          <Plus size={12} /> Tambah Kolom
+        </button>
+      )}
     </div>
   );
 };

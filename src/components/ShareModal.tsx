@@ -13,6 +13,9 @@ import {
   FolderGit2,
   Layers,
   Database,
+  Eye,
+  Pencil,
+  Crown,
 } from 'lucide-react';
 
 export const ShareModal: React.FC = () => {
@@ -20,12 +23,16 @@ export const ShareModal: React.FC = () => {
     isShareOpen,
     setIsShareOpen,
     roomId,
-    myProfile,
     collaborators,
     isConnected,
+    shareRoleSetting,
+    setShareRoleSetting,
+    broadcastShareRoleChange,
+    currentUserRole,
+    projectOwnerId,
   } = useCollaborationStore();
 
-  const { diagramTitle, sheets } = useDiagramStore();
+  const { diagramTitle, sheets, saveStatus } = useDiagramStore();
 
   const [copied, setCopied] = useState(false);
 
@@ -34,7 +41,7 @@ export const ShareModal: React.FC = () => {
   const totalTables = sheets.reduce((acc, sh) => acc + sh.nodes.length, 0);
   const totalEdges = sheets.reduce((acc, sh) => acc + sh.edges.length, 0);
 
-  const shareUrl = `${window.location.origin}${window.location.pathname}?project=${roomId}`;
+  const shareUrl = `${window.location.origin}${window.location.pathname}?project=${roomId}&role=${shareRoleSetting}`;
 
   const handleCopy = async () => {
     try {
@@ -44,6 +51,11 @@ export const ShareModal: React.FC = () => {
     } catch {
       prompt('Salin link file proyek berikut:', shareUrl);
     }
+  };
+
+  const handleRoleChange = (role: 'editor' | 'viewer') => {
+    setShareRoleSetting(role);
+    broadcastShareRoleChange(role);
   };
 
   return (
@@ -77,7 +89,7 @@ export const ShareModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400">
-                Ajak tim membuka seluruh isi file diagram & edit bersamaan
+                Ajak tim membuka seluruh isi file diagram & kolaborasi
               </p>
             </div>
           </div>
@@ -117,15 +129,90 @@ export const ShareModal: React.FC = () => {
                 </div>
               </div>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 shrink-0">
-              Tersimpan
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0 ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40'
+                  : 'bg-amber-950/80 text-amber-400 border-amber-500/40'
+              }`}
+            >
+              {saveStatus === 'saved' ? 'Tersimpan di Cloud' : 'Perubahan Lokal'}
             </span>
+          </div>
+
+          {/* Permission Settings: Editor vs Viewer */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span>Hak Akses Pengguna Link Ini</span>
+              <span className="text-[10px] text-indigo-400 font-medium">
+                {currentUserRole === 'owner' ? '👑 Anda Pemilik Proyek' : 'Izin Dibagikan'}
+              </span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleRoleChange('editor')}
+                className={`flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                  shareRoleSetting === 'editor'
+                    ? 'bg-indigo-950/40 border-indigo-500/80 ring-1 ring-indigo-500/50'
+                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-white">
+                    <Pencil size={13} className="text-indigo-400" />
+                    <span>Bisa Mengedit</span>
+                  </div>
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                      shareRoleSetting === 'editor'
+                        ? 'border-indigo-500 bg-indigo-500'
+                        : 'border-slate-600 bg-transparent'
+                    }`}
+                  >
+                    {shareRoleSetting === 'editor' && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Rekan dapat menggeser tabel, menambah kolom, & mengedit skema langsung.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRoleChange('viewer')}
+                className={`flex flex-col text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                  shareRoleSetting === 'viewer'
+                    ? 'bg-amber-950/40 border-amber-500/80 ring-1 ring-amber-500/50'
+                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-white">
+                    <Eye size={13} className="text-amber-400" />
+                    <span>Hanya Melihat</span>
+                  </div>
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                      shareRoleSetting === 'viewer'
+                        ? 'border-amber-500 bg-amber-500'
+                        : 'border-slate-600 bg-transparent'
+                    }`}
+                  >
+                    {shareRoleSetting === 'viewer' && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Rekan hanya dapat melihat & export tanpa bisa mengubah kanvas.
+                </p>
+              </button>
+            </div>
           </div>
 
           {/* Share Link Box */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span>Link File Proyek (Siapapun dengan link ini)</span>
+              <span>Link File Proyek ({shareRoleSetting === 'editor' ? 'Mode Edit' : 'Mode Pelihat'})</span>
               <span className="text-[10px] text-amber-400 font-medium flex items-center gap-1">
                 <ShieldCheck size={12} /> Wajib Login Google
               </span>
@@ -147,48 +234,15 @@ export const ShareModal: React.FC = () => {
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Rekan yang membuka link ini akan langsung membuka file proyek yang sama (termasuk Sheet 1 & semua sheet lainnya), serta dapat berkontribusi secara real-time.
+              Rekan yang membuka link ini akan membuka file proyek lengkap{' '}
+              <strong className="text-slate-300">
+                {shareRoleSetting === 'editor' ? 'sebagai Editor' : 'sebagai Pelihat (Viewer)'}
+              </strong>
+              .
             </p>
           </div>
 
-          {/* Your Profile in this room */}
-          <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md ring-2 ring-offset-2 ring-offset-[#0d1117] overflow-hidden shrink-0"
-                style={{ backgroundColor: myProfile.color, borderColor: myProfile.color }}
-              >
-                {myProfile.avatar ? (
-                  <img src={myProfile.avatar} alt={myProfile.name} className="w-full h-full object-cover" />
-                ) : (
-                  myProfile.name.charAt(0).toUpperCase()
-                )}
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider block">
-                  Identitas Google Anda
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white">{myProfile.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-medium">
-                    Terverifikasi
-                  </span>
-                </div>
-                {myProfile.email && (
-                  <span className="text-[11px] text-slate-400 block">{myProfile.email}</span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-              <span
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: myProfile.color }}
-              />
-              <span className="text-[11px] hidden sm:inline">Warna Kursor</span>
-            </div>
-          </div>
-
-          {/* Online Collaborators */}
+          {/* Online Collaborators with Role Badges */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
@@ -199,41 +253,61 @@ export const ShareModal: React.FC = () => {
             </div>
 
             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-              {collaborators.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/80 text-xs"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0 overflow-hidden"
-                      style={{ backgroundColor: user.color }}
-                    >
-                      {user.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        user.name.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-medium text-slate-200 truncate">
-                        {user.name} {user.isSelf && <span className="text-slate-500 font-normal">(Anda)</span>}
+              {collaborators.map((u) => {
+                const isOwner = u.role === 'owner' || (projectOwnerId && u.id === projectOwnerId);
+                const isViewer = u.role === 'viewer';
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/80 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0 overflow-hidden"
+                        style={{ backgroundColor: u.color }}
+                      >
+                        {u.avatar ? (
+                          <img
+                            src={u.avatar}
+                            alt={u.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          u.name.charAt(0).toUpperCase()
+                        )}
                       </div>
-                      {user.email && (
-                        <div className="text-[10px] text-slate-500 truncate">{user.email}</div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-200 truncate flex items-center gap-1.5">
+                          <span>{u.name}</span>
+                          {u.isSelf && <span className="text-slate-500 font-normal text-[10px]">(Anda)</span>}
+                        </div>
+                        {u.email && (
+                          <div className="text-[10px] text-slate-500 truncate">{u.email}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      {isOwner ? (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/30 text-[10px] font-semibold text-amber-300 flex items-center gap-1">
+                          <Crown size={10} className="text-amber-400" />
+                          <span>Pemilik</span>
+                        </span>
+                      ) : isViewer ? (
+                        <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-semibold text-slate-300 flex items-center gap-1">
+                          <Eye size={10} className="text-slate-400" />
+                          <span>Pelihat</span>
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/30 text-[10px] font-semibold text-indigo-300 flex items-center gap-1">
+                          <Pencil size={10} className="text-indigo-400" />
+                          <span>Editor</span>
+                        </span>
                       )}
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Aktif di ruangan" />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="text-[10px] text-emerald-400 font-medium">Aktif</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -241,7 +315,7 @@ export const ShareModal: React.FC = () => {
           <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-900/40 flex items-start gap-2.5 text-xs text-slate-400">
             <Sparkles size={16} className="text-indigo-400 shrink-0 mt-0.5" />
             <div className="leading-relaxed text-[11px]">
-              Setiap tabel yang Anda geser, tambah, atau relasikan akan otomatis tersimpan ke file proyek ini dan tersinkronisasi langsung ke layar seluruh anggota.
+              Setiap tabel yang diedit oleh Editor otomatis tersimpan ke file cloud ini dan langsung sinkron ke seluruh anggota secara real-time. Pelihat hanya dapat melihat tanpa mengubah kanvas.
             </div>
           </div>
         </div>

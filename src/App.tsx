@@ -26,7 +26,7 @@ import { MultiplayerCursors } from './components/MultiplayerCursors';
 import { ShareModal } from './components/ShareModal';
 import { JoinRoomAuthModal } from './components/JoinRoomAuthModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
-import { useCollaborationStore } from './store/useCollaborationStore';
+import { useCollaborationStore, selectIsReadOnly } from './store/useCollaborationStore';
 
 const nodeTypes: NodeTypes = { tableNode: TableNode };
 const edgeTypes: EdgeTypes = { crowsFoot: CrowsFootEdge };
@@ -51,6 +51,7 @@ export const App: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
   const isSelectMode = useDiagramStore((s) => s.isSelectMode);
+  const isReadOnly = useCollaborationStore(selectIsReadOnly);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -119,26 +120,19 @@ export const App: React.FC = () => {
   const diagramId = useDiagramStore((s) => s.diagramId);
 
   useEffect(() => {
-    if (!user || !diagramId) return;
+    if (!user || !diagramId || isReadOnly) return;
+
+    useDiagramStore.getState().setSaveStatus('unsaved');
 
     if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
     lastCloudSaveRef.current = setTimeout(() => {
-      supabase
-        .from('diagrams')
-        .update({
-          title: diagramTitle,
-          sheets: allSheets,
-          active_sheet_id: activeSheetId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', diagramId)
-        .then();
-    }, 2500);
+      useDiagramStore.getState().saveToCloud(user);
+    }, 2000);
 
     return () => {
       if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
     };
-  }, [allSheets, diagramTitle, diagramId, user, activeSheetId]);
+  }, [allSheets, diagramTitle, diagramId, user, activeSheetId, isReadOnly]);
 
   // Initialize Real-time Collaboration (Canva/Figma style)
   useEffect(() => {
@@ -199,12 +193,14 @@ export const App: React.FC = () => {
           showToast(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Ctrl+V`);
         }
       } else if (ctrl && (e.key === 'v' || e.key === 'V')) {
+        if (isReadOnly) return;
         const count = useDiagramStore.getState().pasteTables();
         if (count > 0) {
           e.preventDefault();
           showToast(`✨ ${count} tabel berhasil ditempel ke ${activeSheet.name}!`);
         }
       } else if (ctrl && (e.key === 'd' || e.key === 'D')) {
+        if (isReadOnly) return;
         e.preventDefault();
         const count = useDiagramStore.getState().duplicateSelectedTables();
         if (count > 0) {
@@ -214,7 +210,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [showToast, activeSheet.name]);
+  }, [showToast, activeSheet.name, isReadOnly]);
 
   // Save viewport on sheet change
   useEffect(() => {
@@ -291,12 +287,42 @@ export const App: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* ReactFlow Canvas */}
         <div className="flex-1 relative" onPointerMove={handlePointerMove}>
+          {/* Viewer Mode Banner */}
+          {isReadOnly && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-[#0d1117]/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-full px-4 py-1.5 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-1.5 text-sky-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                <span>Mode Pelihat (Viewer)</span>
+              </div>
+              <span className="text-slate-700 hidden sm:inline">|</span>
+              <span className="text-slate-400 text-[11px] hidden md:inline">
+                Hanya membaca skema · Perubahan tidak disimpan ke dokumen asli
+              </span>
+              <button
+                onClick={async () => {
+                  if (!user) {
+                    setIsAuthOpen(true);
+                    return;
+                  }
+                  const newId = await useDiagramStore.getState().duplicateProjectAsNew(user);
+                  if (newId) {
+                    useCollaborationStore.getState().initSession(newId, user);
+                    showToast('✨ Proyek berhasil diduplikasi ke akun Anda! Sekarang Anda bisa mengeditnya.');
+                  }
+                }}
+                className="px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] shadow-md shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+              >
+                Duplikasi Proyek
+              </button>
+            </div>
+          )}
+
           <ReactFlow
             nodes={activeSheet.nodes}
             edges={displayEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
+            onNodesChange={isReadOnly ? undefined : onNodesChange}
+            onEdgesChange={isReadOnly ? undefined : onEdgesChange}
+            onConnect={isReadOnly ? undefined : onConnect}
             onMoveEnd={handleMoveEnd}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
@@ -306,9 +332,11 @@ export const App: React.FC = () => {
             maxZoom={2.5}
             onlyRenderVisibleElements
             elevateNodesOnSelect
-            deleteKeyCode={['Backspace', 'Delete']}
-            panOnDrag={isSelectMode ? [1, 2] : true}
-            selectionOnDrag={isSelectMode}
+            nodesDraggable={!isReadOnly}
+            nodesConnectable={!isReadOnly}
+            deleteKeyCode={isReadOnly ? [] : ['Backspace', 'Delete']}
+            panOnDrag={isSelectMode && !isReadOnly ? [1, 2] : true}
+            selectionOnDrag={isSelectMode && !isReadOnly}
             selectionMode={SelectionMode.Partial}
             panOnScroll={true}
             className="bg-[#020617]"

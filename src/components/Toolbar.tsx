@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { toPng } from 'html-to-image';
 import { useDiagramStore } from '../store/useDiagramStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { useCollaborationStore } from '../store/useCollaborationStore';
+import { useCollaborationStore, selectIsReadOnly } from '../store/useCollaborationStore';
 import { supabase } from '../lib/supabase';
 import { EditProjectNameModal } from './EditProjectNameModal';
 import {
@@ -32,6 +32,7 @@ import {
   ClipboardPaste,
   Pencil,
   Keyboard,
+  Eye,
 } from 'lucide-react';
 
 interface Props {
@@ -64,19 +65,20 @@ export const Toolbar: React.FC<Props> = ({
     diagramId,
     diagramTitle,
     setDiagramTitle,
-    sheets,
-    activeSheetId,
     clipboard,
     copySelectedTables,
     pasteTables,
     isSelectMode,
     toggleSelectMode,
+    saveStatus,
+    lastSavedAt,
+    saveToCloud,
+    duplicateProjectAsNew,
   } = useDiagramStore();
 
+  const isReadOnly = useCollaborationStore(selectIsReadOnly);
   const { user, signOut } = useAuthStore();
   const { collaborators, startSharing } = useCollaborationStore();
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
 
@@ -109,36 +111,43 @@ export const Toolbar: React.FC<Props> = ({
     let currentDiagramId = diagramId;
     // If project is not yet saved to cloud, auto-save as a permanent cloud project file first!
     if (!currentDiagramId) {
-      setSaving(true);
-      try {
-        const { data, error } = await supabase
-          .from('diagrams')
-          .insert({
-            user_id: user.id,
-            title: diagramTitle,
-            sheets,
-            active_sheet_id: activeSheetId,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        if (data) {
-          currentDiagramId = data.id;
-          useDiagramStore.setState({ diagramId: data.id });
-          onShowToast?.(`📁 File proyek "${diagramTitle}" disimpan ke Cloud!`);
-        }
-      } catch (err: any) {
-        console.error('Failed to auto-save project before sharing:', err);
-        alert('Gagal menyiapkan link file proyek: ' + (err?.message || 'Error'));
-        setSaving(false);
+      const ok = await saveToCloud(user);
+      if (!ok) {
+        alert('Gagal menyiapkan link file proyek. Coba periksa koneksi.');
         return;
-      } finally {
-        setSaving(false);
       }
+      currentDiagramId = useDiagramStore.getState().diagramId;
     }
 
     startSharing(currentDiagramId || undefined, user);
+  };
+
+  const handleDuplicate = async () => {
+    if (!user) {
+      onOpenAuth();
+      return;
+    }
+    const newId = await duplicateProjectAsNew(user);
+    if (newId) {
+      window.history.replaceState({}, '', `?project=${newId}`);
+      useCollaborationStore.getState().initSession(newId, user);
+      onShowToast?.('🎉 Proyek berhasil diduplikasi ke akun Anda! Sekarang Anda dapat mengedit.');
+    } else {
+      onShowToast?.('⚠️ Gagal menduplikasi proyek.');
+    }
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!user) {
+      onOpenAuth();
+      return;
+    }
+    const success = await saveToCloud(user);
+    if (success) {
+      onShowToast?.('☁️ Semua sheet & tabel berhasil disimpan ke Cloud!');
+    } else {
+      onShowToast?.('⚠️ Gagal menyimpan ke Cloud. Coba periksa koneksi.');
+    }
   };
 
   const handleExportPng = async () => {
@@ -152,57 +161,6 @@ export const Toolbar: React.FC<Props> = ({
       a.click();
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  const handleSaveToCloud = async () => {
-    if (!user) {
-      onOpenAuth();
-      return;
-    }
-
-    setSaving(true);
-    setSaveSuccess(false);
-
-    try {
-      if (diagramId) {
-        const { error } = await supabase
-          .from('diagrams')
-          .update({
-            title: diagramTitle,
-            sheets,
-            active_sheet_id: activeSheetId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', diagramId);
-
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('diagrams')
-          .insert({
-            user_id: user.id,
-            title: diagramTitle,
-            sheets,
-            active_sheet_id: activeSheetId,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        if (data) {
-          useDiagramStore.setState({ diagramId: data.id });
-          useCollaborationStore.getState().initSession(data.id, user);
-        }
-      }
-
-      setSaveSuccess(true);
-      onShowToast?.('☁️ Semua sheet & tabel berhasil disimpan ke Cloud!');
-      setTimeout(() => setSaveSuccess(false), 2500);
-    } catch (err: any) {
-      alert(`Gagal menyimpan diagram: ${err?.message || 'Error'}`);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -229,28 +187,70 @@ export const Toolbar: React.FC<Props> = ({
               <Pencil size={11} className="text-slate-400 group-hover:text-indigo-400 shrink-0 transition-colors" />
             </button>
 
-            {/* Cloud Save Button */}
-            <button
-              onClick={handleSaveToCloud}
-              disabled={saving}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-all ${
-                saveSuccess
-                  ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-400'
-                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
-              }`}
-              title={user ? 'Simpan diagram ke cloud Supabase' : 'Login untuk simpan ke cloud'}
-            >
-              {saving ? (
-                <Loader2 size={13} className="animate-spin text-indigo-400" />
-              ) : saveSuccess ? (
-                <Check size={13} className="text-emerald-400" />
-              ) : (
-                <Cloud size={13} className={user ? 'text-indigo-400' : 'text-slate-400'} />
-              )}
-              <span className="hidden sm:inline">
-                {saving ? 'Menyimpan...' : saveSuccess ? 'Tersimpan!' : 'Simpan'}
-              </span>
-            </button>
+            {/* Cloud Save Status Pill or Viewer Badge */}
+            {isReadOnly ? (
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-300 text-xs font-semibold"
+                  title="Anda membuka proyek ini dalam mode Pelihat (Hanya Baca). Duplikasi untuk mengedit."
+                >
+                  <Eye size={12} className="text-amber-400" />
+                  <span>Pelihat</span>
+                </span>
+                <button
+                  onClick={handleDuplicate}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all hover:scale-[1.02]"
+                  title="Duplikasi file proyek ini ke akun Anda untuk mulai mengedit"
+                >
+                  <Copy size={12} />
+                  <span className="hidden sm:inline">Duplikasi</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleSaveToCloud}
+                disabled={saveStatus === 'saving'}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border transition-all ${
+                  saveStatus === 'saved'
+                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-400'
+                    : saveStatus === 'saving'
+                    ? 'bg-indigo-950/60 border-indigo-500/50 text-indigo-300'
+                    : saveStatus === 'unsaved'
+                    ? 'bg-amber-950/60 border-amber-500/60 text-amber-300 hover:bg-amber-900/60'
+                    : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
+                }`}
+                title={
+                  !user
+                    ? 'Draft tersimpan di browser. Login Google untuk simpan ke cloud'
+                    : saveStatus === 'saved'
+                    ? `Tersimpan di Cloud ${lastSavedAt ? `(${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}`
+                    : saveStatus === 'saving'
+                    ? 'Sedang menyimpan ke cloud...'
+                    : 'Ada perubahan belum disimpan ke Cloud. Klik untuk simpan'
+                }
+              >
+                {saveStatus === 'saving' ? (
+                  <Loader2 size={13} className="animate-spin text-indigo-400" />
+                ) : saveStatus === 'saved' ? (
+                  <Check size={13} className="text-emerald-400" />
+                ) : saveStatus === 'unsaved' ? (
+                  <Cloud size={13} className="text-amber-400" />
+                ) : (
+                  <Cloud size={13} className={user ? 'text-indigo-400' : 'text-slate-400'} />
+                )}
+                <span className="hidden sm:inline">
+                  {saveStatus === 'saving'
+                    ? 'Menyimpan...'
+                    : saveStatus === 'saved'
+                    ? 'Tersimpan'
+                    : saveStatus === 'unsaved'
+                    ? 'Simpan Cloud'
+                    : user
+                    ? 'Simpan'
+                    : 'Draft Lokal'}
+                </span>
+              </button>
+            )}
 
             {/* My Diagrams Button */}
             <button
@@ -266,80 +266,101 @@ export const Toolbar: React.FC<Props> = ({
 
         {/* Center Section: Compact Tool Clusters (Fits cleanly on 100% zoom & laptops) */}
         <div className="hidden lg:flex items-center gap-1.5 shrink-0">
-          {/* Primary: New Table Button */}
-          <button
-            onClick={addTable}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-[1.02] shadow-md shadow-indigo-600/20 shrink-0"
-            title="Tambah Tabel Baru"
-          >
-            <Plus size={14} />
-            <span>New Table</span>
-          </button>
+          {isReadOnly ? (
+            /* Mode Pelihat center badge with Duplicate button */
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-900/80 border border-amber-500/30 text-xs">
+              <span className="flex items-center gap-1 text-amber-300 font-medium">
+                <Eye size={13} className="text-amber-400" />
+                <span>Mode Pelihat (Hanya Baca)</span>
+              </span>
+              <button
+                onClick={handleDuplicate}
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-sm transition-all"
+                title="Buat salinan proyek ini ke akun Anda agar bisa mengedit"
+              >
+                <Copy size={12} />
+                <span>Duplikasi untuk Edit</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Primary: New Table Button */}
+              <button
+                onClick={addTable}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-[1.02] shadow-md shadow-indigo-600/20 shrink-0"
+                title="Tambah Tabel Baru"
+              >
+                <Plus size={14} />
+                <span>New Table</span>
+              </button>
 
-          {/* Cluster 1: Selection & Clipboard */}
-          <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5">
-            <button
-              onClick={toggleSelectMode}
-              title={
-                isSelectMode
-                  ? 'Mode Kotak Seleksi AKTIF (Klik untuk kembali ke geser canvas)'
-                  : 'Mode Kotak Seleksi (Rectangle Select). Anda juga bisa Shift+Tarik mouse.'
-              }
-              className={`p-1.5 rounded-md transition-all ${
-                isSelectMode
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <BoxSelect size={14} />
-            </button>
+              {/* Cluster 1: Selection & Clipboard */}
+              <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5">
+                <button
+                  onClick={toggleSelectMode}
+                  title={
+                    isSelectMode
+                      ? 'Mode Kotak Seleksi AKTIF (Klik untuk kembali ke geser canvas)'
+                      : 'Mode Kotak Seleksi (Rectangle Select). Anda juga bisa Shift+Tarik mouse.'
+                  }
+                  className={`p-1.5 rounded-md transition-all ${
+                    isSelectMode
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <BoxSelect size={14} />
+                </button>
 
-            <button
-              onClick={() => {
-                const count = copySelectedTables();
-                if (count > 0) {
-                  onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel (Ctrl+V)`);
-                } else {
-                  onShowToast?.('Pilih tabel terlebih dahulu (klik atau tarik kotak seleksi)');
-                }
-              }}
-              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-              title="Salin tabel terpilih (Ctrl+C)"
-            >
-              <Copy size={14} />
-            </button>
+                <button
+                  onClick={() => {
+                    const count = copySelectedTables();
+                    if (count > 0) {
+                      onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel (Ctrl+V)`);
+                    } else {
+                      onShowToast?.('Pilih tabel terlebih dahulu (klik atau tarik kotak seleksi)');
+                    }
+                  }}
+                  className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                  title="Salin tabel terpilih (Ctrl+C)"
+                >
+                  <Copy size={14} />
+                </button>
 
-            <button
-              onClick={() => {
-                const count = pasteTables();
-                if (count > 0) {
-                  onShowToast?.(`✨ ${count} tabel berhasil ditempel!`);
-                } else {
-                  onShowToast?.('Belum ada tabel yang disalin. Salin tabel terlebih dahulu dengan Ctrl+C');
-                }
-              }}
-              disabled={!clipboard}
-              className={`p-1.5 rounded-md transition-all ${
-                clipboard
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-slate-600 opacity-40 cursor-not-allowed'
-              }`}
-              title={clipboard ? `Tempel ${clipboard.nodes.length} tabel (Ctrl+V)` : 'Tempel tabel (Ctrl+V)'}
-            >
-              <ClipboardPaste size={14} />
-            </button>
-          </div>
+                <button
+                  onClick={() => {
+                    const count = pasteTables();
+                    if (count > 0) {
+                      onShowToast?.(`✨ ${count} tabel berhasil ditempel!`);
+                    } else {
+                      onShowToast?.('Belum ada tabel yang disalin. Salin tabel terlebih dahulu dengan Ctrl+C');
+                    }
+                  }}
+                  disabled={!clipboard}
+                  className={`p-1.5 rounded-md transition-all ${
+                    clipboard
+                      ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      : 'text-slate-600 opacity-40 cursor-not-allowed'
+                  }`}
+                  title={clipboard ? `Tempel ${clipboard.nodes.length} tabel (Ctrl+V)` : 'Tempel tabel (Ctrl+V)'}
+                >
+                  <ClipboardPaste size={14} />
+                </button>
+              </div>
+
+              {/* Layout: Auto Layout Dagre */}
+              <button
+                onClick={applyAutoLayout}
+                title="Rapikan Tata Letak Otomatis (Auto Layout Dagre)"
+                className="p-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <Workflow size={14} />
+              </button>
+            </>
+          )}
 
           {/* Cluster 2: Layout & View Controls */}
           <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5">
-            <button
-              onClick={applyAutoLayout}
-              title="Rapikan Tata Letak Otomatis (Auto Layout Dagre)"
-              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-            >
-              <Workflow size={14} />
-            </button>
-
             <button
               onClick={toggleSplitView}
               title="Toggle Panel SQL Preview"
@@ -367,14 +388,16 @@ export const Toolbar: React.FC<Props> = ({
 
           {/* Cluster 3: Import & Export Group */}
           <div className="flex items-center bg-slate-900/80 border border-slate-800 rounded-lg p-0.5 text-xs">
-            <button
-              onClick={onOpenImportSql}
-              title="Import Skema dari SQL DDL"
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
-            >
-              <Upload size={13} className="text-slate-400" />
-              <span className="hidden xl:inline">Import</span>
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={onOpenImportSql}
+                title="Import Skema dari SQL DDL"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <Upload size={13} className="text-slate-400" />
+                <span className="hidden xl:inline">Import</span>
+              </button>
+            )}
 
             <button
               onClick={onOpenExportSql}
@@ -417,15 +440,26 @@ export const Toolbar: React.FC<Props> = ({
 
         {/* Right Section: Collaborators, Share, Auth, Mobile Menu */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Quick Add Table on Mobile (< lg) */}
-          <button
-            onClick={addTable}
-            className="flex lg:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
-            title="Tambah Tabel Baru"
-          >
-            <Plus size={14} />
-            <span className="hidden xs:inline">Tabel</span>
-          </button>
+          {/* Quick Add Table / Duplikasi on Mobile (< lg) */}
+          {!isReadOnly ? (
+            <button
+              onClick={addTable}
+              className="flex lg:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
+              title="Tambah Tabel Baru"
+            >
+              <Plus size={14} />
+              <span className="hidden xs:inline">Tabel</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleDuplicate}
+              className="flex lg:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
+              title="Duplikasi proyek ini untuk mengedit"
+            >
+              <Copy size={13} />
+              <span className="hidden xs:inline">Duplikasi</span>
+            </button>
+          )}
 
           {/* Live Multiplayer Collaborators Stack */}
           {collaborators.length > 0 && (
@@ -539,17 +573,46 @@ export const Toolbar: React.FC<Props> = ({
                   <div className="text-xs font-bold text-white truncate">{diagramTitle}</div>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setIsRenameOpen(true);
-                }}
-                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/50 hover:border-indigo-400 text-indigo-200 hover:text-white rounded-lg text-xs font-medium transition-colors shrink-0"
-              >
-                <Pencil size={11} />
-                <span>Ubah</span>
-              </button>
+              {!isReadOnly ? (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setIsRenameOpen(true);
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/50 hover:border-indigo-400 text-indigo-200 hover:text-white rounded-lg text-xs font-medium transition-colors shrink-0"
+                >
+                  <Pencil size={11} />
+                  <span>Ubah</span>
+                </button>
+              ) : (
+                <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-500/40 text-[10px] font-semibold text-amber-300">
+                  Pelihat
+                </span>
+              )}
             </div>
+
+            {/* ReadOnly Callout in Mobile Drawer */}
+            {isReadOnly && (
+              <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Eye size={16} className="text-amber-400 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-amber-300">Mode Pelihat</div>
+                    <div className="text-[10px] text-slate-400 truncate">Hanya pemilik & editor yang dapat mengedit</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleDuplicate();
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md flex items-center gap-1 shrink-0"
+                >
+                  <Copy size={12} />
+                  <span>Duplikasi</span>
+                </button>
+              </div>
+            )}
 
             {/* Quick Overview */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
@@ -562,55 +625,81 @@ export const Toolbar: React.FC<Props> = ({
 
             {/* Grid Tools */}
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                onClick={() => {
-                  toggleSelectMode();
-                  setMobileMenuOpen(false);
-                  onShowToast?.(
-                    isSelectMode
-                      ? 'Mode Geser Canvas aktif'
-                      : 'Mode Kotak Seleksi aktif! Tarik kotak di atas tabel untuk memilih banyak tabel'
-                  );
-                }}
-                className={`flex items-center gap-2 p-2.5 rounded-xl border text-slate-200 ${
-                  isSelectMode ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200' : 'bg-slate-900 border-slate-800'
-                }`}
-              >
-                <BoxSelect size={14} className="text-indigo-400 shrink-0" />
-                <span>{isSelectMode ? 'Kotak Seleksi (Aktif)' : 'Kotak Seleksi'}</span>
-              </button>
+              {!isReadOnly && (
+                <>
+                  <button
+                    onClick={() => {
+                      toggleSelectMode();
+                      setMobileMenuOpen(false);
+                      onShowToast?.(
+                        isSelectMode
+                          ? 'Mode Geser Canvas aktif'
+                          : 'Mode Kotak Seleksi aktif! Tarik kotak di atas tabel untuk memilih banyak tabel'
+                      );
+                    }}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border text-slate-200 ${
+                      isSelectMode ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200' : 'bg-slate-900 border-slate-800'
+                    }`}
+                  >
+                    <BoxSelect size={14} className="text-indigo-400 shrink-0" />
+                    <span>{isSelectMode ? 'Kotak Seleksi (Aktif)' : 'Kotak Seleksi'}</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  const count = copySelectedTables();
-                  setMobileMenuOpen(false);
-                  if (count > 0) {
-                    onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel`);
-                  } else {
-                    onShowToast?.('Pilih tabel terlebih dahulu sebelum menyalin');
-                  }
-                }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
-              >
-                <Copy size={14} className="text-amber-400 shrink-0" />
-                <span>Salin Tabel</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      const count = copySelectedTables();
+                      setMobileMenuOpen(false);
+                      if (count > 0) {
+                        onShowToast?.(`📋 ${count} tabel disalin! Buka sheet lain lalu tekan Tempel`);
+                      } else {
+                        onShowToast?.('Pilih tabel terlebih dahulu sebelum menyalin');
+                      }
+                    }}
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
+                  >
+                    <Copy size={14} className="text-amber-400 shrink-0" />
+                    <span>Salin Tabel</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  const count = pasteTables();
-                  setMobileMenuOpen(false);
-                  if (count > 0) {
-                    onShowToast?.(`✨ ${count} tabel berhasil ditempel!`);
-                  } else {
-                    onShowToast?.('Belum ada tabel yang disalin');
-                  }
-                }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
-              >
-                <ClipboardPaste size={14} className="text-emerald-400 shrink-0" />
-                <span>Tempel Tabel</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      const count = pasteTables();
+                      setMobileMenuOpen(false);
+                      if (count > 0) {
+                        onShowToast?.(`✨ ${count} tabel berhasil ditempel!`);
+                      } else {
+                        onShowToast?.('Belum ada tabel yang disalin');
+                      }
+                    }}
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
+                  >
+                    <ClipboardPaste size={14} className="text-emerald-400 shrink-0" />
+                    <span>Tempel Tabel</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      applyAutoLayout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
+                  >
+                    <Workflow size={14} className="text-emerald-400 shrink-0" />
+                    <span>Auto Layout</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onOpenImportSql();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
+                  >
+                    <Upload size={14} className="text-violet-400 shrink-0" />
+                    <span>Import SQL</span>
+                  </button>
+                </>
+              )}
 
               <button
                 onClick={() => {
@@ -636,17 +725,6 @@ export const Toolbar: React.FC<Props> = ({
 
               <button
                 onClick={() => {
-                  onOpenImportSql();
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
-              >
-                <Upload size={14} className="text-violet-400 shrink-0" />
-                <span>Import SQL</span>
-              </button>
-
-              <button
-                onClick={() => {
                   onOpenExportSql();
                   setMobileMenuOpen(false);
                 }}
@@ -654,17 +732,6 @@ export const Toolbar: React.FC<Props> = ({
               >
                 <FileCode size={14} className="text-pink-400 shrink-0" />
                 <span>Export Schema</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  applyAutoLayout();
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200"
-              >
-                <Workflow size={14} className="text-emerald-400 shrink-0" />
-                <span>Auto Layout</span>
               </button>
 
               <button
@@ -715,16 +782,18 @@ export const Toolbar: React.FC<Props> = ({
 
             {/* Reset & Account options */}
             <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-              <button
-                onClick={() => {
-                  resetToSample();
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-1.5 text-slate-400 hover:text-white px-2 py-1.5"
-              >
-                <RotateCcw size={13} />
-                <span>Reset ke Contoh</span>
-              </button>
+              {!isReadOnly && (
+                <button
+                  onClick={() => {
+                    resetToSample();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 text-slate-400 hover:text-white px-2 py-1.5"
+                >
+                  <RotateCcw size={13} />
+                  <span>Reset ke Contoh</span>
+                </button>
+              )}
 
               {user && (
                 <button

@@ -4,6 +4,9 @@ import type { Connection, Edge, EdgeChange, Node, NodeChange, Viewport } from '@
 import type { Column, Sheet, TableData } from '../types/schema';
 import { initialTables, initialEdges } from '../utils/sampleData';
 import { computeDagreLayout } from '../utils/autoLayout';
+import { supabase } from '../lib/supabase';
+
+export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'local';
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
 export const selectActiveSheet = (s: DiagramState): Sheet =>
@@ -24,9 +27,15 @@ interface DiagramState {
   animateEdges: boolean;
   diagramId: string | null;
   diagramTitle: string;
+  saveStatus: SaveStatus;
+  lastSavedAt: Date | null;
   setDiagramTitle: (title: string) => void;
+  setSaveStatus: (status: SaveStatus) => void;
+  setLastSavedAt: (date: Date | null) => void;
   loadCloudDiagram: (id: string, title: string, sheets: Sheet[], activeSheetId: string) => void;
   newDiagram: () => void;
+  saveToCloud: (user: any) => Promise<boolean>;
+  duplicateProjectAsNew: (user: any) => Promise<string | null>;
 
   // ReactFlow handlers (operate on active sheet)
   onNodesChange: (changes: NodeChange<Node<TableData>>[]) => void;
@@ -148,12 +157,105 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   animateEdges: true,
   diagramId: initialData.diagramId,
   diagramTitle: initialData.diagramTitle,
+  saveStatus: initialData.diagramId ? 'saved' : 'local',
+  lastSavedAt: null,
 
-  setDiagramTitle: (title) => set({ diagramTitle: title }),
+  setDiagramTitle: (title) => set({ diagramTitle: title, saveStatus: get().diagramId ? 'unsaved' : 'local' }),
+  setSaveStatus: (status) => set({ saveStatus: status }),
+  setLastSavedAt: (date) => set({ lastSavedAt: date }),
+
   loadCloudDiagram: (id, title, sheets, activeSheetId) => {
-    set({ diagramId: id, diagramTitle: title, sheets, activeSheetId });
+    set({
+      diagramId: id,
+      diagramTitle: title,
+      sheets,
+      activeSheetId,
+      saveStatus: 'saved',
+      lastSavedAt: new Date(),
+    });
     saveDraftImmediately();
   },
+
+  saveToCloud: async (user: any) => {
+    if (!user) return false;
+    const { diagramId, diagramTitle, sheets, activeSheetId } = get();
+    set({ saveStatus: 'saving' });
+
+    try {
+      if (diagramId) {
+        const { error } = await supabase
+          .from('diagrams')
+          .update({
+            title: diagramTitle,
+            sheets,
+            active_sheet_id: activeSheetId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', diagramId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('diagrams')
+          .insert({
+            user_id: user.id,
+            title: diagramTitle,
+            sheets,
+            active_sheet_id: activeSheetId,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        if (data) {
+          set({ diagramId: data.id });
+        }
+      }
+      set({ saveStatus: 'saved', lastSavedAt: new Date() });
+      saveDraftImmediately();
+      return true;
+    } catch (err) {
+      console.error('Failed to save to cloud:', err);
+      set({ saveStatus: 'unsaved' });
+      return false;
+    }
+  },
+
+  duplicateProjectAsNew: async (user: any) => {
+    if (!user) return null;
+    const { diagramTitle, sheets, activeSheetId } = get();
+    const newTitle = `${diagramTitle} (Salinan)`;
+    set({ saveStatus: 'saving' });
+
+    try {
+      const { data, error } = await supabase
+        .from('diagrams')
+        .insert({
+          user_id: user.id,
+          title: newTitle,
+          sheets,
+          active_sheet_id: activeSheetId,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        set({
+          diagramId: data.id,
+          diagramTitle: newTitle,
+          saveStatus: 'saved',
+          lastSavedAt: new Date(),
+        });
+        saveDraftImmediately();
+        return data.id;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to duplicate project:', err);
+      set({ saveStatus: 'unsaved' });
+      return null;
+    }
+  },
+
   resetToSample: () => {
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -163,6 +265,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       diagramTitle: 'Untitled Schema',
       sheets: [initialSheet],
       activeSheetId: 'sheet-1',
+      saveStatus: 'local',
+      lastSavedAt: null,
     });
   },
   newDiagram: () => {
@@ -174,6 +278,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       diagramTitle: 'Untitled Schema',
       sheets: [{ id: 'sheet-1', name: 'Main Schema', nodes: [], edges: [] }],
       activeSheetId: 'sheet-1',
+      saveStatus: 'local',
+      lastSavedAt: null,
     });
   },
 
