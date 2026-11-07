@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { RealtimeChannel, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Sheet } from '../types/schema';
-import { useDiagramStore, setCollabBroadcaster } from './useDiagramStore';
+import { useDiagramStore, setCollabBroadcaster, setCollabDelegate } from './useDiagramStore';
 
 export type UserProjectRole = 'owner' | 'editor' | 'viewer';
 
@@ -652,4 +652,13 @@ export const selectIsReadOnly = (s: CollaborationState) => s.currentUserRole ===
 // Register broadcaster so useDiagramStore auto-syncs local mutations
 setCollabBroadcaster((sheets, activeSheetId) => {
   useCollaborationStore.getState().broadcastDiagramChange(sheets, activeSheetId);
+});
+
+// Register delegate so useDiagramStore can interact without circular import
+setCollabDelegate({
+  getRole: () => useCollaborationStore.getState().currentUserRole,
+  getShareRole: () => useCollaborationStore.getState().shareRoleSetting,
+  getAllowedEditors: () => useCollaborationStore.getState().allowedEditors,
+  initSession: (diagramId, user) => useCollaborationStore.getState().initSession(diagramId, user),
+  leaveRoom: () => useCollaborationStore.getState().leaveRoom(),
 });

@@ -5,7 +5,19 @@ import type { Column, Sheet, TableData } from '../types/schema';
 import { initialTables, initialEdges } from '../utils/sampleData';
 import { computeDagreLayout } from '../utils/autoLayout';
 import { supabase } from '../lib/supabase';
-import { useCollaborationStore } from './useCollaborationStore';
+
+export interface CollabDelegate {
+  getRole: () => string;
+  getShareRole: () => 'editor' | 'viewer';
+  getAllowedEditors: () => string[];
+  initSession: (diagramId: string, user: any) => void;
+  leaveRoom: () => void;
+}
+
+let collabDelegate: CollabDelegate | null = null;
+export const setCollabDelegate = (delegate: CollabDelegate) => {
+  collabDelegate = delegate;
+};
 
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'local';
 
@@ -193,8 +205,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     if (!sheets || sheets.length === 0) return false;
 
     // Viewers cannot save to cloud
-    const collabState = useCollaborationStore.getState();
-    if (collabState.currentUserRole === 'viewer') return false;
+    if (collabDelegate && collabDelegate.getRole() === 'viewer') return false;
 
     // Enrich sheets[0] with creator & permission metadata
     const enrichedSheets = [...sheets];
@@ -209,8 +220,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
       ...enrichedSheets[0],
       projectSettings: {
         ...existingSettings,
-        defaultRole: collabState.shareRoleSetting || existingSettings.defaultRole || 'editor',
-        allowedEditors: collabState.allowedEditors || existingSettings.allowedEditors || [],
+        defaultRole: collabDelegate?.getShareRole() || existingSettings.defaultRole || 'editor',
+        allowedEditors: collabDelegate?.getAllowedEditors() || existingSettings.allowedEditors || [],
         ownerId: existingSettings.ownerId || user.id,
         ownerName: existingSettings.ownerName || ownerName,
         ownerEmail: existingSettings.ownerEmail || user.email,
@@ -252,7 +263,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
             currentUrl.searchParams.set('project', data.id);
             window.history.replaceState({}, '', currentUrl.toString());
           }
-          useCollaborationStore.getState().initSession(data.id, user);
+          collabDelegate?.initSession(data.id, user);
         }
       }
       set({ saveStatus: 'saved', lastSavedAt: new Date() });
@@ -321,7 +332,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           currentUrl.searchParams.delete('role');
           window.history.replaceState({}, '', currentUrl.toString());
         }
-        useCollaborationStore.getState().initSession(data.id, user);
+        collabDelegate?.initSession(data.id, user);
         return data.id;
       }
       return null;
@@ -336,7 +347,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch {}
-    useCollaborationStore.getState().leaveRoom();
+    collabDelegate?.leaveRoom();
     set({
       diagramId: null,
       diagramTitle: 'Untitled Schema',
@@ -350,7 +361,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch {}
-    useCollaborationStore.getState().leaveRoom();
+    collabDelegate?.leaveRoom();
     set({
       diagramId: null,
       diagramTitle: 'Untitled Schema',
