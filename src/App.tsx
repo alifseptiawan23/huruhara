@@ -283,7 +283,7 @@ export const App: React.FC = () => {
   }, [rawEdges, hoveredTableId, animateEdges]);
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-[#020617] overflow-hidden">
+    <div className="w-screen h-screen h-[100dvh] flex flex-col bg-[#020617] overflow-hidden">
       <Toolbar
         onOpenExportSql={() => setIsExportOpen(true)}
         onOpenImportSql={() => setIsImportOpen(true)}

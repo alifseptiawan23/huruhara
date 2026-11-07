@@ -34,6 +34,7 @@ import {
   Keyboard,
   Eye,
   Crown,
+  Layers,
 } from 'lucide-react';
 
 interface Props {
@@ -75,6 +76,10 @@ export const Toolbar: React.FC<Props> = ({
     lastSavedAt,
     saveToCloud,
     duplicateProjectAsNew,
+    sheets,
+    activeSheetId,
+    addSheet,
+    setActiveSheet,
   } = useDiagramStore();
 
   const isReadOnly = useCollaborationStore(selectIsReadOnly);
@@ -663,6 +668,58 @@ export const Toolbar: React.FC<Props> = ({
                 <span>Bagikan File Proyek (Atur Izin)</span>
               </button>
             )}
+
+            {/* Sheet Switcher in Mobile Drawer */}
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                  <Layers size={14} className="text-indigo-400" />
+                  <span>Sheet Skema ({sheets.length})</span>
+                </div>
+                <button
+                  onClick={() => {
+                    addSheet();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-[11px] font-semibold text-indigo-200 hover:text-white transition-colors"
+                >
+                  <Plus size={12} />
+                  <span>Sheet Baru</span>
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                {sheets.map((sh) => {
+                  const isActive = sh.id === activeSheetId;
+                  return (
+                    <div
+                      key={sh.id}
+                      onClick={() => {
+                        setActiveSheet(sh.id);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                        isActive
+                          ? 'bg-indigo-950/60 border-indigo-500 text-white font-semibold'
+                          : 'bg-slate-950/40 border-slate-800/80 text-slate-300 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-indigo-400' : 'bg-slate-600'}`} />
+                        <span className="truncate">{sh.name}</span>
+                        {isActive && (
+                          <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/20 px-1 py-0.2 rounded border border-indigo-500/30">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        {sh.nodes.length} tabel
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* ReadOnly Callout in Mobile Drawer */}
             {isReadOnly && (
