@@ -270,6 +270,20 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           .then(({ data, error }) => {
             if (!error && data) {
               const isOwner = user && data.user_id === user.id;
+
+              // Track collaboration diagram visited by user
+              if (!isOwner && user) {
+                try {
+                  const key = `visited_projects_${user.id}`;
+                  const raw = localStorage.getItem(key);
+                  const list: string[] = raw ? JSON.parse(raw) : [];
+                  if (!list.includes(targetRoom)) {
+                    list.push(targetRoom);
+                    localStorage.setItem(key, JSON.stringify(list));
+                  }
+                } catch {}
+              }
+
               const settings = data.sheets?.[0]?.projectSettings;
               const allowed = settings?.allowedEditors || [];
               const linkRole = settings?.defaultRole || urlParams.get('role') || 'viewer';

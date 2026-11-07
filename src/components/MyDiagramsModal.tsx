@@ -36,6 +36,31 @@ const removeDismissedCollabId = (userId: string, diagramId: string) => {
   } catch {}
 };
 
+export const getVisitedProjectIds = (userId: string): string[] => {
+  try {
+    const raw = localStorage.getItem(`visited_projects_${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const addVisitedProjectId = (userId: string, diagramId: string) => {
+  try {
+    const current = getVisitedProjectIds(userId);
+    if (!current.includes(diagramId)) {
+      localStorage.setItem(`visited_projects_${userId}`, JSON.stringify([...current, diagramId]));
+    }
+  } catch {}
+};
+
+export const removeVisitedProjectId = (userId: string, diagramId: string) => {
+  try {
+    const current = getVisitedProjectIds(userId);
+    localStorage.setItem(`visited_projects_${userId}`, JSON.stringify(current.filter((id) => id !== diagramId)));
+  } catch {}
+};
+
 export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }) => {
   const { user } = useAuthStore();
   const { diagramId, loadCloudDiagram, newDiagram } = useDiagramStore();
@@ -56,7 +81,22 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
 
       if (error) throw error;
       const dismissed = getDismissedCollabIds(user.id);
-      const visible = (data || []).filter((d) => d.user_id === user.id || !dismissed.includes(d.id));
+      const visited = getVisitedProjectIds(user.id);
+      const userEmail = (user.email || '').toLowerCase();
+
+      // STRICT FILTER:
+      // Only show:
+      // 1. Projects created by this user (d.user_id === user.id)
+      // 2. OR collaboration projects that this user has visited/joined or been invited to by email
+      const visible = (data || []).filter((d) => {
+        if (dismissed.includes(d.id)) return false;
+        if (d.user_id === user.id) return true;
+        // Check if user was explicitly invited as allowed editor
+        const allowed: string[] = d.sheets?.[0]?.projectSettings?.allowedEditors || [];
+        const isAllowedEditor = userEmail && allowed.some((em) => em.toLowerCase() === userEmail);
+        const hasVisited = visited.includes(d.id);
+        return isAllowedEditor || hasVisited;
+      });
       setDiagrams(visible);
     } catch (err) {
       console.error('Error fetching diagrams:', err);
@@ -76,6 +116,7 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
   const handleSelect = (diag: DiagramRecord) => {
     if (user && diag.user_id !== user.id) {
       removeDismissedCollabId(user.id, diag.id);
+      addVisitedProjectId(user.id, diag.id);
     }
     loadCloudDiagram(diag.id, diag.title, diag.sheets, diag.active_sheet_id);
     useCollaborationStore.getState().initSession(diag.id, user);
@@ -92,14 +133,18 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
     if (!confirm('Yakin ingin menghapus diagram ini secara permanen dari cloud?')) return;
     setDeletingId(id);
     try {
-      const { error } = await supabase.from('diagrams').delete().eq('id', id);
+      const { data, error } = await supabase.from('diagrams').delete().eq('id', id).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Diagram tidak ditemukan atau tidak berhasil dihapus di cloud.');
+      }
       setDiagrams((prev) => prev.filter((d) => d.id !== id));
       if (diagramId === id) {
         newDiagram();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting diagram:', err);
+      alert('Gagal menghapus diagram: ' + (err?.message || 'Terjadi kesalahan'));
     } finally {
       setDeletingId(null);
     }
@@ -116,6 +161,7 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
     }
     if (user) {
       addDismissedCollabId(user.id, id);
+      removeVisitedProjectId(user.id, id);
     }
     setDiagrams((prev) => prev.filter((d) => d.id !== id));
     if (diagramId === id) {

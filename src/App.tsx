@@ -133,6 +133,13 @@ export const App: React.FC = () => {
     // Don't auto-save if canvas is still loading/empty
     if (allSheets.length === 0) return;
 
+    // Safety: if diagramId is null (brand new canvas), don't auto-create in cloud if there are 0 tables!
+    const totalTables = allSheets.reduce((acc, sh) => acc + (sh.nodes?.length || 0), 0);
+    if (!useDiagramStore.getState().diagramId && totalTables === 0) {
+      useDiagramStore.getState().setSaveStatus('local');
+      return;
+    }
+
     useDiagramStore.getState().setSaveStatus('unsaved');
 
     if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
