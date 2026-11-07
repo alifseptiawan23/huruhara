@@ -128,9 +128,16 @@ const getInitialDraft = () => {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed.sheets) && parsed.sheets.length > 0) {
+            const sanitized = parsed.sheets.map((s: any, idx: number) => ({
+              id: s.id || `sheet-${idx + 1}`,
+              name: s.name || `Sheet ${idx + 1}`,
+              nodes: Array.isArray(s.nodes) ? s.nodes : [],
+              edges: Array.isArray(s.edges) ? s.edges : [],
+              projectSettings: s.projectSettings,
+            }));
             return {
-              sheets: parsed.sheets,
-              activeSheetId: parsed.activeSheetId || parsed.sheets[0].id,
+              sheets: sanitized,
+              activeSheetId: parsed.activeSheetId || sanitized[0].id,
               diagramTitle: parsed.diagramTitle || 'Untitled Schema',
               diagramId: parsed.diagramId || null,
             };
@@ -186,7 +193,14 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setLastSavedAt: (date) => set({ lastSavedAt: date }),
 
   loadCloudDiagram: (id, title, sheets, activeSheetId) => {
-    const validSheets = Array.isArray(sheets) && sheets.length > 0 ? sheets : [initialSheet];
+    const rawSheets = Array.isArray(sheets) && sheets.length > 0 ? sheets : [initialSheet];
+    const validSheets = rawSheets.map((s: any, idx: number) => ({
+      id: s.id || `sheet-${idx + 1}`,
+      name: s.name || `Sheet ${idx + 1}`,
+      nodes: Array.isArray(s.nodes) ? s.nodes : [],
+      edges: Array.isArray(s.edges) ? s.edges : [],
+      projectSettings: s.projectSettings,
+    }));
     set({
       diagramId: id,
       diagramTitle: title || 'Untitled Schema',

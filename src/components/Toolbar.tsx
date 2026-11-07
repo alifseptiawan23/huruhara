@@ -713,7 +713,7 @@ export const Toolbar: React.FC<Props> = ({
                         )}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono">
-                        {sh.nodes.length} tabel
+                        {sh.nodes?.length || 0} tabel
                       </div>
                     </div>
                   );

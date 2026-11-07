@@ -85,7 +85,7 @@ export const SheetBar: React.FC = () => {
                     <span className="max-w-[140px] sm:max-w-[180px] truncate">{sheet.name}</span>
                     {/* Node count pill */}
                     <span className="text-[10px] font-mono text-slate-400 bg-slate-950/50 px-1 rounded border border-slate-800">
-                      {sheet.nodes.length}
+                      {sheet.nodes?.length || 0}
                     </span>
                   </>
                 )}
@@ -109,7 +109,7 @@ export const SheetBar: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm(`Hapus sheet "${sheet.name}" beserta ${sheet.nodes.length} tabel di dalamnya?`)) {
+                      if (confirm(`Hapus sheet "${sheet.name}" beserta ${sheet.nodes?.length || 0} tabel di dalamnya?`)) {
                         deleteSheet(sheet.id);
                       }
                     }}
@@ -223,7 +223,7 @@ export const SheetBar: React.FC = () => {
                             )}
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            {sh.nodes.length} tabel · {sh.edges.length} relasi
+                            {sh.nodes?.length || 0} tabel · {sh.edges?.length || 0} relasi
                           </div>
                         </div>
                       )}
