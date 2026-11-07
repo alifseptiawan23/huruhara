@@ -3,7 +3,7 @@ import { supabase, type DiagramRecord } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDiagramStore } from '../store/useDiagramStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
-import { X, Folder, Plus, Trash2, Clock, Check, Loader2, Database } from 'lucide-react';
+import { X, Folder, Plus, Trash2, Clock, Check, Loader2, Database, Crown, Users } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -146,6 +146,10 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
               ) : (
                 diagrams.map((d) => {
                   const isCurrent = d.id === diagramId;
+                  const isOwner = d.user_id === user.id;
+                  const ownerName =
+                    (Array.isArray(d.sheets) && (d.sheets[0] as any)?.projectSettings?.ownerName) ||
+                    (isOwner ? 'Anda' : 'Kolaborator');
                   const dateStr = new Date(d.updated_at).toLocaleDateString('id-ID', {
                     day: 'numeric',
                     month: 'short',
@@ -177,11 +181,20 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
                           <Database size={15} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs text-white truncate">{d.title}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-xs text-white truncate max-w-[200px]">{d.title}</span>
                             {isCurrent && (
                               <span className="flex items-center gap-1 text-[10px] font-mono text-indigo-400 bg-indigo-500/20 px-1.5 py-0.5 rounded border border-indigo-500/30">
                                 <Check size={10} /> Aktif
+                              </span>
+                            )}
+                            {isOwner ? (
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                <Crown size={10} /> Milik Saya
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] font-medium text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                                <Users size={10} /> Oleh: {ownerName}
                               </span>
                             )}
                           </div>
@@ -198,14 +211,18 @@ export const MyDiagramsModal: React.FC<Props> = ({ isOpen, onClose, onOpenAuth }
                       </div>
 
                       <div className="flex items-center gap-1 ml-2">
-                        <button
-                          onClick={(e) => handleDelete(d.id, e)}
-                          disabled={deletingId === d.id}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                          title="Hapus diagram"
-                        >
-                          {deletingId === d.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        </button>
+                        {isOwner ? (
+                          <button
+                            onClick={(e) => handleDelete(d.id, e)}
+                            disabled={deletingId === d.id}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Hapus diagram"
+                          >
+                            {deletingId === d.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 italic px-1">Tamu</span>
+                        )}
                       </div>
                     </div>
                   );

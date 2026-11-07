@@ -33,6 +33,7 @@ export const ShareModal: React.FC = () => {
     broadcastShareRoleChange,
     currentUserRole,
     projectOwnerId,
+    projectOwnerInfo,
     allowedEditors,
     addAllowedEditor,
     removeAllowedEditor,
@@ -126,12 +127,18 @@ export const ShareModal: React.FC = () => {
                 <FolderGit2 size={18} />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">
-                  File Proyek Cloud (Milik Anda)
+                <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider flex items-center gap-1">
+                  <span>File Proyek Cloud</span>
+                  <span className="text-amber-400 font-semibold">• Dibuat oleh: {projectOwnerInfo?.name || 'Anda'}</span>
                 </div>
                 <div className="text-xs sm:text-sm font-bold text-white truncate">
                   {diagramTitle}
                 </div>
+                {projectOwnerInfo?.email && (
+                  <div className="text-[10px] text-slate-400 truncate">
+                    Pemilik: {projectOwnerInfo.email}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                   <span className="flex items-center gap-1">
                     <Layers size={11} className="text-violet-400" /> {sheets.length} Sheet

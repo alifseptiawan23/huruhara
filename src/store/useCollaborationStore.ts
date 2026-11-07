@@ -39,6 +39,7 @@ const COLLAB_COLORS = [
 interface CollaborationState {
   roomId: string;
   projectOwnerId: string | null;
+  projectOwnerInfo: { id?: string; name: string; email?: string } | null;
   currentUserRole: UserProjectRole;
   shareRoleSetting: 'editor' | 'viewer';
   allowedEditors: string[];
@@ -87,6 +88,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
   return {
     roomId: '',
     projectOwnerId: null,
+    projectOwnerInfo: null,
     currentUserRole: 'owner',
     shareRoleSetting: 'editor',
     allowedEditors: [],
@@ -178,6 +180,10 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       set({
         roomId: '',
         needsAuthToJoin: false,
+        isCanvasLoaded: false,
+        projectOwnerId: null,
+        projectOwnerInfo: null,
+        currentUserRole: 'owner',
       });
     },
 
@@ -279,8 +285,17 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
                 role = 'viewer';
               }
 
+              const ownerInfo = {
+                id: data.user_id,
+                name: isOwner
+                  ? (user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anda')
+                  : (settings?.ownerName || 'Pengguna'),
+                email: isOwner ? user.email : settings?.ownerEmail,
+              };
+
               set((s) => ({
                 projectOwnerId: data.user_id,
+                projectOwnerInfo: ownerInfo,
                 currentUserRole: role,
                 shareRoleSetting: linkRole === 'editor' ? 'editor' : 'viewer',
                 allowedEditors: allowed,
@@ -441,7 +456,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
 
       // 4. Broadcast: Request canvas state when a new peer joins
       roomChannel.on('broadcast', { event: 'request_state' }, ({ payload }) => {
-        const { currentUserRole, isCanvasLoaded, projectOwnerId, shareRoleSetting, allowedEditors } = get();
+        const { currentUserRole, isCanvasLoaded, projectOwnerId, projectOwnerInfo, shareRoleSetting, allowedEditors } = get();
         // Only respond if this client has legitimate canvas state loaded!
         if ((currentUserRole === 'owner' || isCanvasLoaded) && payload && payload.requesterId !== myProfile.id) {
           const { sheets, activeSheetId, diagramTitle } = useDiagramStore.getState();
@@ -455,6 +470,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
                 activeSheetId,
                 diagramTitle,
                 ownerId: projectOwnerId || user?.id,
+                ownerInfo: projectOwnerInfo,
                 shareRoleSetting,
                 allowedEditors,
               },
@@ -491,9 +507,16 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
               determinedRole = 'viewer';
             }
 
+            const ownerInfo = payload.ownerInfo || {
+              id: payload.ownerId,
+              name: isOwner ? 'Anda' : (payload.ownerName || 'Pemilik Proyek'),
+              email: payload.ownerEmail,
+            };
+
             set((s) => ({
               isCanvasLoaded: true,
               projectOwnerId: payload.ownerId || s.projectOwnerId,
+              projectOwnerInfo: ownerInfo,
               currentUserRole: determinedRole,
               shareRoleSetting: payload.shareRoleSetting || s.shareRoleSetting,
               allowedEditors: allowed,
@@ -565,21 +588,6 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           timestamp: Date.now(),
         },
       });
-
-      // Auto-save changes to cloud if editing a shared cloud project file
-      if (roomId && !roomId.startsWith('collab_')) {
-        const title = useDiagramStore.getState().diagramTitle;
-        supabase
-          .from('diagrams')
-          .update({
-            title,
-            sheets,
-            active_sheet_id: activeSheetId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', roomId)
-          .then();
-      }
     },
 
     broadcastTitleChange: (newTitle: string) => {
@@ -631,6 +639,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           collaborators: [],
           cursors: {},
           projectOwnerId: null,
+          projectOwnerInfo: null,
           currentUserRole: 'owner',
         });
       }

@@ -28,6 +28,14 @@ export interface Sheet {
   nodes: import('@xyflow/react').Node<TableData>[];
   edges: import('@xyflow/react').Edge[];
   viewport?: { x: number; y: number; zoom: number };
+  projectSettings?: {
+    defaultRole?: 'editor' | 'viewer';
+    allowedEditors?: string[];
+    ownerId?: string;
+    ownerName?: string;
+    ownerEmail?: string;
+    updatedAt?: string;
+  };
 }
 
 export type Cardinality = '1:1' | '1:n' | 'n:1' | 'n:m' | 'one-to-one' | 'one-to-many' | 'many-to-many';

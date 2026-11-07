@@ -53,6 +53,7 @@ export const App: React.FC = () => {
   const authLoading = useAuthStore((s) => s.loading);
   const isSelectMode = useDiagramStore((s) => s.isSelectMode);
   const isReadOnly = useCollaborationStore(selectIsReadOnly);
+  const projectOwnerInfo = useCollaborationStore((s) => s.projectOwnerInfo);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -115,26 +116,34 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Background cloud auto-save (Figma/Docs style) when user is logged in
+  // Centralized background cloud auto-save (Figma/Docs style) when user is logged in
   const lastCloudSaveRef = React.useRef<any>(null);
+  const isInitialMount = React.useRef(true);
   const allSheets = useDiagramStore((s) => s.sheets);
   const diagramTitle = useDiagramStore((s) => s.diagramTitle);
-  const diagramId = useDiagramStore((s) => s.diagramId);
 
   useEffect(() => {
-    if (!user || !diagramId || isReadOnly) return;
+    // Skip initial mount so we don't falsely trigger "unsaved" status on load
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (!user || isReadOnly) return;
+    // Don't auto-save if canvas is still loading/empty
+    if (allSheets.length === 0) return;
 
     useDiagramStore.getState().setSaveStatus('unsaved');
 
     if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
     lastCloudSaveRef.current = setTimeout(() => {
       useDiagramStore.getState().saveToCloud(user);
-    }, 2000);
+    }, 1500);
 
     return () => {
       if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
     };
-  }, [allSheets, diagramTitle, diagramId, user, activeSheetId, isReadOnly]);
+  }, [allSheets, diagramTitle, user, activeSheetId, isReadOnly]);
 
   // Initialize Real-time Collaboration (Canva/Figma style)
   useEffect(() => {
@@ -311,7 +320,7 @@ export const App: React.FC = () => {
               </div>
               <span className="text-slate-700 hidden sm:inline">|</span>
               <span className="text-slate-400 text-[11px] hidden md:inline">
-                Hanya membaca skema · Perubahan tidak disimpan ke dokumen asli
+                Proyek milik <strong className="text-slate-200">{projectOwnerInfo?.name || 'Pemilik'}</strong> · Hanya membaca skema
               </span>
               <button
                 onClick={async () => {

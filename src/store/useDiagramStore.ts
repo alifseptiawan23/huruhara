@@ -5,6 +5,7 @@ import type { Column, Sheet, TableData } from '../types/schema';
 import { initialTables, initialEdges } from '../utils/sampleData';
 import { computeDagreLayout } from '../utils/autoLayout';
 import { supabase } from '../lib/supabase';
+import { useCollaborationStore } from './useCollaborationStore';
 
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'local';
 
@@ -190,6 +191,33 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     const { diagramId, diagramTitle, sheets, activeSheetId } = get();
     // Safety: never overwrite cloud record with empty sheets!
     if (!sheets || sheets.length === 0) return false;
+
+    // Viewers cannot save to cloud
+    const collabState = useCollaborationStore.getState();
+    if (collabState.currentUserRole === 'viewer') return false;
+
+    // Enrich sheets[0] with creator & permission metadata
+    const enrichedSheets = [...sheets];
+    const existingSettings = enrichedSheets[0]?.projectSettings || {};
+    const ownerName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split('@')[0] ||
+      'Pengguna';
+
+    enrichedSheets[0] = {
+      ...enrichedSheets[0],
+      projectSettings: {
+        ...existingSettings,
+        defaultRole: collabState.shareRoleSetting || existingSettings.defaultRole || 'editor',
+        allowedEditors: collabState.allowedEditors || existingSettings.allowedEditors || [],
+        ownerId: existingSettings.ownerId || user.id,
+        ownerName: existingSettings.ownerName || ownerName,
+        ownerEmail: existingSettings.ownerEmail || user.email,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
     set({ saveStatus: 'saving' });
 
     try {
@@ -198,7 +226,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           .from('diagrams')
           .update({
             title: diagramTitle,
-            sheets,
+            sheets: enrichedSheets,
             active_sheet_id: activeSheetId,
             updated_at: new Date().toISOString(),
           })
@@ -210,7 +238,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
           .insert({
             user_id: user.id,
             title: diagramTitle,
-            sheets,
+            sheets: enrichedSheets,
             active_sheet_id: activeSheetId,
           })
           .select()
@@ -218,6 +246,13 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         if (error) throw error;
         if (data) {
           set({ diagramId: data.id });
+          // Update URL without full reload to reflect permanent project ID
+          if (typeof window !== 'undefined') {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('project', data.id);
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+          useCollaborationStore.getState().initSession(data.id, user);
         }
       }
       set({ saveStatus: 'saved', lastSavedAt: new Date() });
@@ -236,13 +271,34 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     const newTitle = `${diagramTitle} (Salinan)`;
     set({ saveStatus: 'saving' });
 
+    const ownerName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split('@')[0] ||
+      'Pengguna';
+
+    const enrichedSheets = [...sheets];
+    if (enrichedSheets[0]) {
+      enrichedSheets[0] = {
+        ...enrichedSheets[0],
+        projectSettings: {
+          defaultRole: 'editor',
+          allowedEditors: [],
+          ownerId: user.id,
+          ownerName: ownerName,
+          ownerEmail: user.email,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    }
+
     try {
       const { data, error } = await supabase
         .from('diagrams')
         .insert({
           user_id: user.id,
           title: newTitle,
-          sheets,
+          sheets: enrichedSheets,
           active_sheet_id: activeSheetId,
         })
         .select()
@@ -253,10 +309,19 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         set({
           diagramId: data.id,
           diagramTitle: newTitle,
+          sheets: enrichedSheets,
           saveStatus: 'saved',
           lastSavedAt: new Date(),
         });
         saveDraftImmediately();
+
+        if (typeof window !== 'undefined') {
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('project', data.id);
+          currentUrl.searchParams.delete('role');
+          window.history.replaceState({}, '', currentUrl.toString());
+        }
+        useCollaborationStore.getState().initSession(data.id, user);
         return data.id;
       }
       return null;
@@ -271,6 +336,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch {}
+    useCollaborationStore.getState().leaveRoom();
     set({
       diagramId: null,
       diagramTitle: 'Untitled Schema',
@@ -284,6 +350,7 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch {}
+    useCollaborationStore.getState().leaveRoom();
     set({
       diagramId: null,
       diagramTitle: 'Untitled Schema',

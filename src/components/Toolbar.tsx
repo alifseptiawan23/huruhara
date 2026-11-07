@@ -33,6 +33,7 @@ import {
   Pencil,
   Keyboard,
   Eye,
+  Crown,
 } from 'lucide-react';
 
 interface Props {
@@ -78,6 +79,7 @@ export const Toolbar: React.FC<Props> = ({
 
   const isReadOnly = useCollaborationStore(selectIsReadOnly);
   const currentUserRole = useCollaborationStore((s) => s.currentUserRole);
+  const projectOwnerInfo = useCollaborationStore((s) => s.projectOwnerInfo);
   const isOwner = currentUserRole === 'owner';
   const { user, signOut } = useAuthStore();
   const { collaborators, startSharing } = useCollaborationStore();
@@ -189,13 +191,36 @@ export const Toolbar: React.FC<Props> = ({
           <div className="flex items-center gap-1 sm:gap-1.5">
             {/* Project Title Button with Pencil Icon */}
             <button
-              onClick={() => setIsRenameOpen(true)}
-              className="group flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 text-xs font-bold text-white transition-all max-w-[100px] xs:max-w-[130px] sm:max-w-[160px] md:max-w-[180px]"
-              title="Klik untuk ubah nama proyek"
+              onClick={() => isOwner && setIsRenameOpen(true)}
+              className={`group flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/80 border text-xs font-bold text-white transition-all max-w-[100px] xs:max-w-[130px] sm:max-w-[160px] md:max-w-[180px] ${
+                isOwner ? 'hover:bg-slate-800 border-slate-800 hover:border-indigo-500/50 cursor-pointer' : 'border-slate-800/80 cursor-default'
+              }`}
+              title={isOwner ? "Klik untuk ubah nama proyek" : `Nama proyek: ${diagramTitle}`}
             >
               <span className="truncate">{diagramTitle}</span>
-              <Pencil size={11} className="text-slate-400 group-hover:text-indigo-400 shrink-0 transition-colors" />
+              {isOwner && <Pencil size={11} className="text-slate-400 group-hover:text-indigo-400 shrink-0 transition-colors" />}
             </button>
+
+            {/* Creator / Owner Tag */}
+            {projectOwnerInfo && (
+              <div
+                className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                  isOwner
+                    ? 'bg-amber-950/50 border-amber-500/30 text-amber-300'
+                    : 'bg-indigo-950/50 border-indigo-500/30 text-indigo-300'
+                }`}
+                title={
+                  isOwner
+                    ? `Proyek ini dibuat oleh Anda (${user?.email})`
+                    : `Proyek dibuat oleh: ${projectOwnerInfo.name} (${projectOwnerInfo.email || ''})`
+                }
+              >
+                <Crown size={10} className={isOwner ? 'text-amber-400' : 'text-indigo-400'} />
+                <span className="truncate max-w-[95px]">
+                  {isOwner ? 'Milik Anda' : `Oleh: ${projectOwnerInfo.name}`}
+                </span>
+              </div>
+            )}
 
             {/* Cloud Save Status Pill or Viewer Badge */}
             {isReadOnly ? (
