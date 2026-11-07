@@ -41,6 +41,8 @@ interface CollaborationState {
   projectOwnerId: string | null;
   currentUserRole: UserProjectRole;
   shareRoleSetting: 'editor' | 'viewer';
+  allowedEditors: string[];
+  isCanvasLoaded: boolean;
   myProfile: Collaborator;
   collaborators: Collaborator[];
   cursors: Record<string, CursorPosition>;
@@ -52,6 +54,10 @@ interface CollaborationState {
   setRoomId: (roomId: string) => void;
   setIsShareOpen: (open: boolean) => void;
   setShareRoleSetting: (role: 'editor' | 'viewer') => void;
+  setAllowedEditors: (emails: string[]) => void;
+  addAllowedEditor: (email: string) => void;
+  removeAllowedEditor: (email: string) => void;
+  changeUserRole: (userId: string, newRole: UserProjectRole) => void;
   initSession: (customRoomId?: string, user?: User | null) => void;
   startSharing: (preferredRoomId?: string, user?: User | null) => void;
   leaveRoom: () => void;
@@ -83,6 +89,8 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
     projectOwnerId: null,
     currentUserRole: 'owner',
     shareRoleSetting: 'editor',
+    allowedEditors: [],
+    isCanvasLoaded: false,
     myProfile: {
       id: myId,
       name: 'User',
@@ -98,15 +106,57 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
     needsAuthToJoin: false,
 
     setRoomId: (roomId: string) => set({ roomId }),
-    setIsShareOpen: (open: boolean) => set({ isShareOpen: open }),
+    setIsShareOpen: (open: boolean) => {
+      // Non-owners can NEVER open share modal!
+      if (open && get().currentUserRole !== 'owner') {
+        return;
+      }
+      set({ isShareOpen: open });
+    },
     setShareRoleSetting: (role: 'editor' | 'viewer') => {
       set({ shareRoleSetting: role });
       get().broadcastShareRoleChange(role);
+    },
+    setAllowedEditors: (emails: string[]) => {
+      set({ allowedEditors: emails });
+    },
+    addAllowedEditor: (email: string) => {
+      const clean = email.trim().toLowerCase();
+      if (!clean) return;
+      const current = get().allowedEditors;
+      if (!current.includes(clean)) {
+        set({ allowedEditors: [...current, clean] });
+      }
+    },
+    removeAllowedEditor: (email: string) => {
+      const clean = email.trim().toLowerCase();
+      set({ allowedEditors: get().allowedEditors.filter((e) => e !== clean) });
+    },
+    changeUserRole: (userId: string, newRole: UserProjectRole) => {
+      if (get().currentUserRole !== 'owner') return;
+      const { channel } = get();
+      if (channel) {
+        channel.send({
+          type: 'broadcast',
+          event: 'individual_role_update',
+          payload: { targetUserId: userId, newRole },
+        });
+      }
+      set((s) => ({
+        collaborators: s.collaborators.map((c) =>
+          c.id === userId ? { ...c, role: newRole } : c
+        ),
+      }));
     },
 
     startSharing: (preferredRoomId?: string, user?: User | null) => {
       // Must be logged in to share
       if (!user) return;
+      // If already connected and not owner, disallow sharing
+      if (get().currentUserRole !== 'owner' && get().projectOwnerId && get().projectOwnerId !== user.id) {
+        alert('Hanya pemilik proyek yang dapat membagikan atau mengatur izin akses proyek ini.');
+        return;
+      }
 
       let currentRoom = preferredRoomId || get().roomId;
       if (!currentRoom) {
@@ -214,21 +264,28 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           .then(({ data, error }) => {
             if (!error && data) {
               const isOwner = user && data.user_id === user.id;
-              const urlRole = urlParams.get('role');
-              let role: UserProjectRole = 'editor';
+              const settings = data.sheets?.[0]?.projectSettings;
+              const allowed = settings?.allowedEditors || [];
+              const linkRole = settings?.defaultRole || urlParams.get('role') || 'viewer';
+
+              let role: UserProjectRole = 'viewer';
               if (isOwner) {
                 role = 'owner';
-              } else if (urlRole === 'viewer') {
-                role = 'viewer';
-              } else if (urlRole === 'editor') {
+              } else if (user?.email && allowed.includes(user.email.toLowerCase())) {
+                role = 'editor';
+              } else if (linkRole === 'editor' && urlParams.get('role') === 'editor') {
                 role = 'editor';
               } else {
-                role = get().shareRoleSetting;
+                role = 'viewer';
               }
 
               set((s) => ({
                 projectOwnerId: data.user_id,
                 currentUserRole: role,
+                shareRoleSetting: linkRole === 'editor' ? 'editor' : 'viewer',
+                allowedEditors: allowed,
+                isCanvasLoaded: true,
+                isShareOpen: isOwner ? s.isShareOpen : false,
                 myProfile: { ...s.myProfile, role },
               }));
 
@@ -328,7 +385,21 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       // 3. Broadcast: Realtime Schema / Diagram edits
       roomChannel.on('broadcast', { event: 'diagram_update' }, ({ payload }) => {
         if (!payload || payload.senderId === myProfile.id) return;
+        if (!Array.isArray(payload.sheets) || payload.sheets.length === 0) return;
+
+        // Safety: If current user is owner with custom tables, never accept incoming bogus update with sample tables!
+        const currentNodes = useDiagramStore.getState().sheets.flatMap((s) => s.nodes);
+        const incomingNodes = payload.sheets.flatMap((s: any) => s.nodes || []);
+        const isIncomingSample = incomingNodes.length === 4 && incomingNodes.some((n: any) => n.data?.label === 'users');
+        const isCurrentCustom = currentNodes.length > 0 && !currentNodes.every((n: any) => ['users', 'profiles', 'posts', 'comments'].includes(String(n.data?.label || '')));
+
+        if (get().currentUserRole === 'owner' && isIncomingSample && isCurrentCustom) {
+          console.warn('Blocked incoming update that would overwrite owner canvas with sample tables.');
+          return;
+        }
+
         useDiagramStore.getState().applyRemoteUpdate(payload.sheets, payload.activeSheetId);
+        set({ isCanvasLoaded: true });
       });
 
       // 3b. Broadcast: Diagram Title change
@@ -352,30 +423,82 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
         });
       });
 
+      // 3d. Broadcast: Individual Role update for specific user
+      roomChannel.on('broadcast', { event: 'individual_role_update' }, ({ payload }) => {
+        if (!payload || !payload.targetUserId || !payload.newRole) return;
+        if (payload.targetUserId === myProfile.id) {
+          set((s) => ({
+            currentUserRole: payload.newRole,
+            myProfile: { ...s.myProfile, role: payload.newRole },
+          }));
+        }
+        set((s) => ({
+          collaborators: s.collaborators.map((c) =>
+            c.id === payload.targetUserId ? { ...c, role: payload.newRole } : c
+          ),
+        }));
+      });
+
       // 4. Broadcast: Request canvas state when a new peer joins
       roomChannel.on('broadcast', { event: 'request_state' }, ({ payload }) => {
-        if (payload && payload.requesterId !== myProfile.id) {
+        const { currentUserRole, isCanvasLoaded, projectOwnerId, shareRoleSetting, allowedEditors } = get();
+        // Only respond if this client has legitimate canvas state loaded!
+        if ((currentUserRole === 'owner' || isCanvasLoaded) && payload && payload.requesterId !== myProfile.id) {
           const { sheets, activeSheetId, diagramTitle } = useDiagramStore.getState();
-          // Send active canvas state to newcomer
-          roomChannel.send({
-            type: 'broadcast',
-            event: 'sync_state',
-            payload: {
-              targetId: payload.requesterId,
-              sheets,
-              activeSheetId,
-              diagramTitle,
-            },
-          });
+          if (Array.isArray(sheets) && sheets.length > 0) {
+            roomChannel.send({
+              type: 'broadcast',
+              event: 'sync_state',
+              payload: {
+                targetId: payload.requesterId,
+                sheets,
+                activeSheetId,
+                diagramTitle,
+                ownerId: projectOwnerId || user?.id,
+                shareRoleSetting,
+                allowedEditors,
+              },
+            });
+          }
         }
       });
 
       // 5. Broadcast: Receive initial canvas state from existing peer
       roomChannel.on('broadcast', { event: 'sync_state' }, ({ payload }) => {
         if (payload && (!payload.targetId || payload.targetId === myProfile.id)) {
-          useDiagramStore.getState().applyRemoteUpdate(payload.sheets, payload.activeSheetId);
-          if (payload.diagramTitle) {
-            useDiagramStore.setState({ diagramTitle: payload.diagramTitle });
+          if (Array.isArray(payload.sheets) && payload.sheets.length > 0) {
+            useDiagramStore.getState().applyRemoteUpdate(payload.sheets, payload.activeSheetId);
+            if (payload.diagramTitle) {
+              useDiagramStore.setState({ diagramTitle: payload.diagramTitle });
+            }
+
+            const isOwner = user && payload.ownerId === user.id;
+            const allowed: string[] = Array.isArray(payload.allowedEditors) ? payload.allowedEditors : [];
+            const isAllowedEmail = Boolean(
+              user?.email &&
+              allowed.some((e) => typeof e === 'string' && e.toLowerCase() === user.email?.toLowerCase())
+            );
+            const urlRole = new URLSearchParams(window.location.search).get('role');
+
+            let determinedRole: UserProjectRole = 'viewer';
+            if (isOwner) {
+              determinedRole = 'owner';
+            } else if (isAllowedEmail) {
+              determinedRole = 'editor';
+            } else if (payload.shareRoleSetting === 'editor' && urlRole === 'editor') {
+              determinedRole = 'editor';
+            } else {
+              determinedRole = 'viewer';
+            }
+
+            set((s) => ({
+              isCanvasLoaded: true,
+              projectOwnerId: payload.ownerId || s.projectOwnerId,
+              currentUserRole: determinedRole,
+              shareRoleSetting: payload.shareRoleSetting || s.shareRoleSetting,
+              allowedEditors: allowed,
+              myProfile: { ...s.myProfile, role: determinedRole },
+            }));
           }
         }
       });
@@ -398,7 +521,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
           roomChannel.send({
             type: 'broadcast',
             event: 'request_state',
-            payload: { requesterId: myProfile.id },
+            payload: { requesterId: myProfile.id, userEmail: user?.email },
           });
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           set({ isConnected: false });
@@ -424,8 +547,13 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
     },
 
     broadcastDiagramChange: (sheets: Sheet[], activeSheetId: string) => {
-      const { channel, isConnected, myProfile, roomId } = get();
+      const { channel, isConnected, myProfile, roomId, currentUserRole, isCanvasLoaded } = get();
       if (!channel || !isConnected || !roomId) return;
+      // Viewers are strictly prohibited from broadcasting diagram edits
+      if (currentUserRole === 'viewer') return;
+      // Never broadcast before canvas is legitimately loaded
+      if (!isCanvasLoaded) return;
+      if (!Array.isArray(sheets) || sheets.length === 0) return;
 
       channel.send({
         type: 'broadcast',

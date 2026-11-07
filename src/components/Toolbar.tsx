@@ -77,12 +77,18 @@ export const Toolbar: React.FC<Props> = ({
   } = useDiagramStore();
 
   const isReadOnly = useCollaborationStore(selectIsReadOnly);
+  const currentUserRole = useCollaborationStore((s) => s.currentUserRole);
+  const isOwner = currentUserRole === 'owner';
   const { user, signOut } = useAuthStore();
   const { collaborators, startSharing } = useCollaborationStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
 
   const handleSaveProjectName = async (newTitle: string) => {
+    if (!isOwner) {
+      onShowToast?.('🔒 Hanya pemilik yang dapat mengubah nama proyek');
+      return;
+    }
     setDiagramTitle(newTitle);
     useCollaborationStore.getState().broadcastTitleChange(newTitle);
 
@@ -103,6 +109,10 @@ export const Toolbar: React.FC<Props> = ({
   const edges = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.edges ?? []);
 
   const handleShareClick = async () => {
+    if (!isOwner) {
+      onShowToast?.('🔒 Hanya pemilik proyek yang dapat membagikan file proyek.');
+      return;
+    }
     if (!user) {
       onOpenAuth();
       return;
@@ -490,20 +500,40 @@ export const Toolbar: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Share / Kolaborasi Button */}
-          <button
-            onClick={handleShareClick}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shrink-0"
-            title="Bagikan file proyek ke rekan tim"
-          >
-            <Share2 size={13} />
-            <span className="hidden sm:inline">Bagikan</span>
-            {collaborators.length > 1 && (
-              <span className="px-1 py-0.2 rounded-full bg-black/40 text-[9px] font-bold">
-                {collaborators.length}
+          {/* Share / Kolaborasi Button - ONLY VISIBLE TO OWNER */}
+          {isOwner ? (
+            <button
+              onClick={handleShareClick}
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shrink-0"
+              title="Bagikan file proyek ke rekan tim"
+            >
+              <Share2 size={13} />
+              <span className="hidden sm:inline">Bagikan</span>
+              {collaborators.length > 1 && (
+                <span className="px-1 py-0.2 rounded-full bg-black/40 text-[9px] font-bold">
+                  {collaborators.length}
+                </span>
+              )}
+            </button>
+          ) : (
+            <div
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border shrink-0 ${
+                currentUserRole === 'editor'
+                  ? 'bg-indigo-950/60 border-indigo-500/40 text-indigo-300'
+                  : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+              }`}
+              title={
+                currentUserRole === 'editor'
+                  ? 'Anda memiliki hak akses Editor'
+                  : 'Anda memiliki hak akses Pelihat (Hanya Baca)'
+              }
+            >
+              {currentUserRole === 'editor' ? <Pencil size={12} /> : <Eye size={12} />}
+              <span className="hidden xs:inline">
+                {currentUserRole === 'editor' ? 'Editor' : 'Pelihat'}
               </span>
-            )}
-          </button>
+            </div>
+          )}
 
           {/* Reset button (Desktop only) */}
           <button
@@ -573,7 +603,7 @@ export const Toolbar: React.FC<Props> = ({
                   <div className="text-xs font-bold text-white truncate">{diagramTitle}</div>
                 </div>
               </div>
-              {!isReadOnly ? (
+              {isOwner ? (
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
@@ -585,11 +615,29 @@ export const Toolbar: React.FC<Props> = ({
                   <span>Ubah</span>
                 </button>
               ) : (
-                <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-500/40 text-[10px] font-semibold text-amber-300">
-                  Pelihat
+                <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${
+                  currentUserRole === 'editor'
+                    ? 'bg-indigo-950/80 border-indigo-500/40 text-indigo-300'
+                    : 'bg-amber-950/80 border-amber-500/40 text-amber-300'
+                }`}>
+                  {currentUserRole === 'editor' ? 'Editor' : 'Pelihat'}
                 </span>
               )}
             </div>
+
+            {/* Share Project Button for Owner in Mobile Drawer */}
+            {isOwner && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleShareClick();
+                }}
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all"
+              >
+                <Share2 size={14} />
+                <span>Bagikan File Proyek (Atur Izin)</span>
+              </button>
+            )}
 
             {/* ReadOnly Callout in Mobile Drawer */}
             {isReadOnly && (

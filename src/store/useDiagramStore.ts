@@ -10,13 +10,13 @@ export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'local';
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
 export const selectActiveSheet = (s: DiagramState): Sheet =>
-  s.sheets.find((sh) => sh.id === s.activeSheetId) ?? s.sheets[0];
+  s.sheets.find((sh) => sh.id === s.activeSheetId) ?? s.sheets[0] ?? { id: 'sheet-1', name: 'Main Schema', nodes: [], edges: [] };
 
 export const selectActiveNodes = (s: DiagramState): Node<TableData>[] =>
-  selectActiveSheet(s).nodes;
+  selectActiveSheet(s)?.nodes ?? [];
 
 export const selectActiveEdges = (s: DiagramState): Edge[] =>
-  selectActiveSheet(s).edges;
+  selectActiveSheet(s)?.edges ?? [];
 
 // ─── State Shape ──────────────────────────────────────────────────────────────
 interface DiagramState {
@@ -126,6 +126,14 @@ const getInitialDraft = () => {
       } catch (err) {
         console.warn('Failed to parse local draft:', err);
       }
+    } else {
+      // Opening a shared project: start with empty canvas to avoid flashing or broadcasting sample tables
+      return {
+        sheets: [],
+        activeSheetId: '',
+        diagramTitle: 'Memuat proyek...',
+        diagramId: params.get('project') || params.get('diagram') || null,
+      };
     }
   }
 
@@ -165,11 +173,12 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   setLastSavedAt: (date) => set({ lastSavedAt: date }),
 
   loadCloudDiagram: (id, title, sheets, activeSheetId) => {
+    const validSheets = Array.isArray(sheets) && sheets.length > 0 ? sheets : [initialSheet];
     set({
       diagramId: id,
-      diagramTitle: title,
-      sheets,
-      activeSheetId,
+      diagramTitle: title || 'Untitled Schema',
+      sheets: validSheets,
+      activeSheetId: activeSheetId || validSheets[0]?.id || 'sheet-1',
       saveStatus: 'saved',
       lastSavedAt: new Date(),
     });
@@ -179,6 +188,8 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   saveToCloud: async (user: any) => {
     if (!user) return false;
     const { diagramId, diagramTitle, sheets, activeSheetId } = get();
+    // Safety: never overwrite cloud record with empty sheets!
+    if (!sheets || sheets.length === 0) return false;
     set({ saveStatus: 'saving' });
 
     try {
@@ -528,11 +539,17 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   // ── Real-time remote sync ───────────────────────────────────────────────────
   isRemoteUpdate: false,
   applyRemoteUpdate: (sheets, activeSheetId) => {
-    set({ sheets, activeSheetId, isRemoteUpdate: true });
-    // Reset flag after 60ms so subsequent local edits broadcast normally
+    if (!Array.isArray(sheets) || sheets.length === 0) return;
+    set({
+      sheets,
+      activeSheetId: activeSheetId || sheets[0]?.id || 'sheet-1',
+      isRemoteUpdate: true,
+      saveStatus: 'saved',
+    });
+    // Reset flag after 100ms so subsequent local edits broadcast normally
     setTimeout(() => {
       useDiagramStore.setState({ isRemoteUpdate: false });
-    }, 60);
+    }, 100);
   },
 
   // ── Auto-layout ─────────────────────────────────────────────────────────────
@@ -729,6 +746,9 @@ export const setCollabBroadcaster = (fn: CollabBroadcaster) => {
 // Listen to local diagram changes and broadcast to peers
 useDiagramStore.subscribe((state, prevState) => {
   if (state.sheets !== prevState.sheets && !state.isRemoteUpdate && collabBroadcaster) {
+    // Safety: NEVER broadcast if sheets is empty (still loading or uninitialized)
+    if (state.sheets.length === 0) return;
+
     if (broadcastTimeout) clearTimeout(broadcastTimeout);
     broadcastTimeout = setTimeout(() => {
       collabBroadcaster?.(state.sheets, state.activeSheetId);

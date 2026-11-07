@@ -27,6 +27,7 @@ import { ShareModal } from './components/ShareModal';
 import { JoinRoomAuthModal } from './components/JoinRoomAuthModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { useCollaborationStore, selectIsReadOnly } from './store/useCollaborationStore';
+import { Loader2 } from 'lucide-react';
 
 const nodeTypes: NodeTypes = { tableNode: TableNode };
 const edgeTypes: EdgeTypes = { crowsFoot: CrowsFootEdge };
@@ -80,10 +81,11 @@ export const App: React.FC = () => {
       // 1. Immediately sync all sheets and tables to localStorage
       saveDraftImmediately();
 
-      // 2. If logged in and diagram has cloud ID, sync to Supabase
+      // 2. If logged in and diagram has cloud ID and not read-only, sync to Supabase
       const currentUser = useAuthStore.getState().user;
       const { diagramId, diagramTitle, sheets, activeSheetId } = useDiagramStore.getState();
-      if (currentUser && diagramId) {
+      const isViewer = useCollaborationStore.getState().currentUserRole === 'viewer';
+      if (currentUser && diagramId && !isViewer && sheets.length > 0) {
         supabase
           .from('diagrams')
           .update({
@@ -287,6 +289,19 @@ export const App: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* ReactFlow Canvas */}
         <div className="flex-1 relative" onPointerMove={handlePointerMove}>
+          {/* Canvas loading state while fetching shared project */}
+          {allSheets.length === 0 && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#020617]/90 backdrop-blur-sm gap-3 select-none">
+              <Loader2 size={32} className="animate-spin text-indigo-500" />
+              <div className="text-sm font-semibold text-slate-200">
+                Memuat file proyek diagram...
+              </div>
+              <div className="text-xs text-slate-500">
+                Menghubungkan ke cloud & sinkronisasi kanvas
+              </div>
+            </div>
+          )}
+
           {/* Viewer Mode Banner */}
           {isReadOnly && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-[#0d1117]/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-full px-4 py-1.5 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md text-xs animate-in fade-in slide-in-from-top-2 duration-200">
