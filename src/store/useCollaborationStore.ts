@@ -37,6 +37,8 @@ const COLLAB_COLORS = [
   '#14b8a6', // Teal
 ];
 
+const syncedUserCollabRooms = new Set<string>();
+
 interface CollaborationState {
   roomId: string;
   projectOwnerId: string | null;
@@ -272,15 +274,19 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
             if (!error && data) {
               const isOwner = user && data.user_id === user.id;
 
-              // Track collaboration diagram visited by user in their account metadata
+              // Track collaboration diagram visited by user in their account metadata (guarded to run once per user-room session!)
               if (!isOwner && user) {
-                const currentCollab: string[] = user.user_metadata?.collab_diagrams || [];
-                const currentDismissed: string[] = user.user_metadata?.dismissed_diagrams || [];
-                if (!currentCollab.includes(targetRoom)) {
-                  useAuthStore.getState().updateUserMetadata({
-                    collab_diagrams: [...currentCollab, targetRoom],
-                    dismissed_diagrams: currentDismissed.filter((id) => id !== targetRoom),
-                  });
+                const syncKey = `${user.id}:${targetRoom}`;
+                if (!syncedUserCollabRooms.has(syncKey)) {
+                  syncedUserCollabRooms.add(syncKey);
+                  const currentCollab: string[] = user.user_metadata?.collab_diagrams || [];
+                  const currentDismissed: string[] = user.user_metadata?.dismissed_diagrams || [];
+                  if (!currentCollab.includes(targetRoom) || currentDismissed.includes(targetRoom)) {
+                    useAuthStore.getState().updateUserMetadata({
+                      collab_diagrams: [...new Set([...currentCollab, targetRoom])],
+                      dismissed_diagrams: currentDismissed.filter((id) => id !== targetRoom),
+                    });
+                  }
                 }
               }
 

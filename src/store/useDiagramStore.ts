@@ -22,14 +22,18 @@ export const setCollabDelegate = (delegate: CollabDelegate) => {
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'local';
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
+const FALLBACK_EMPTY_SHEET: Sheet = { id: 'sheet-1', name: 'Main Schema', nodes: [], edges: [] };
+const EMPTY_NODES: Node<TableData>[] = [];
+const EMPTY_EDGES: Edge[] = [];
+
 export const selectActiveSheet = (s: DiagramState): Sheet =>
-  s.sheets.find((sh) => sh.id === s.activeSheetId) ?? s.sheets[0] ?? { id: 'sheet-1', name: 'Main Schema', nodes: [], edges: [] };
+  s.sheets.find((sh) => sh.id === s.activeSheetId) ?? s.sheets[0] ?? FALLBACK_EMPTY_SHEET;
 
 export const selectActiveNodes = (s: DiagramState): Node<TableData>[] =>
-  selectActiveSheet(s)?.nodes ?? [];
+  selectActiveSheet(s)?.nodes ?? EMPTY_NODES;
 
 export const selectActiveEdges = (s: DiagramState): Edge[] =>
-  selectActiveSheet(s)?.edges ?? [];
+  selectActiveSheet(s)?.edges ?? EMPTY_EDGES;
 
 // ─── State Shape ──────────────────────────────────────────────────────────────
 interface DiagramState {

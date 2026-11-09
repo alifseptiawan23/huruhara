@@ -112,8 +112,9 @@ export const Toolbar: React.FC<Props> = ({
     onShowToast?.(`✏️ Nama proyek diubah: "${newTitle}"`);
   };
 
-  const nodes = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.nodes ?? []);
-  const edges = useDiagramStore((s) => s.sheets.find((sh) => sh.id === s.activeSheetId)?.edges ?? []);
+  const currentSheet = sheets.find((sh) => sh.id === activeSheetId);
+  const nodes = currentSheet?.nodes || [];
+  const edges = currentSheet?.edges || [];
 
   const handleShareClick = async () => {
     if (!isOwner) {

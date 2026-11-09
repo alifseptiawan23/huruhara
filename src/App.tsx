@@ -150,16 +150,17 @@ export const App: React.FC = () => {
     return () => {
       if (lastCloudSaveRef.current) clearTimeout(lastCloudSaveRef.current);
     };
-  }, [allSheets, diagramTitle, user, activeSheetId, isReadOnly]);
+  }, [allSheets, diagramTitle, user?.id, activeSheetId, isReadOnly]);
 
   // Initialize Real-time Collaboration (Canva/Figma style)
+  const userId = user?.id;
   useEffect(() => {
     if (authLoading) return;
     useCollaborationStore.getState().initSession(undefined, user);
     return () => {
       useCollaborationStore.getState().cleanup();
     };
-  }, [user, authLoading]);
+  }, [userId, authLoading]);
 
   // Live mouse cursor throttling (broadcast to peers)
   const lastCursorSentRef = React.useRef(0);
