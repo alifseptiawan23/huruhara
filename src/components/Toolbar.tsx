@@ -201,7 +201,7 @@ export const Toolbar: React.FC<Props> = ({
             {/* Project Title Button with Pencil Icon */}
             <button
               onClick={() => isOwner && setIsRenameOpen(true)}
-              className={`group flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/80 border text-xs font-bold text-white transition-all max-w-[100px] xs:max-w-[130px] sm:max-w-[160px] md:max-w-[180px] ${
+              className={`group flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-lg bg-slate-900/80 border text-xs font-bold text-white transition-all max-w-[80px] xs:max-w-[110px] sm:max-w-[150px] md:max-w-[180px] shrink-0 ${
                 isOwner ? 'hover:bg-slate-800 border-slate-800 hover:border-indigo-500/50 cursor-pointer' : 'border-slate-800/80 cursor-default'
               }`}
               title={isOwner ? "Klik untuk ubah nama proyek" : `Nama proyek: ${diagramTitle}`}
@@ -217,7 +217,7 @@ export const Toolbar: React.FC<Props> = ({
               title="Lihat & Kelola Seluruh Sheet di Proyek Ini (Sheet Viewer)"
             >
               <Layers size={13} className="text-indigo-400 shrink-0" />
-              <span className="truncate max-w-[65px] xs:max-w-[95px] sm:max-w-[130px] text-white">
+              <span className="truncate max-w-[50px] xs:max-w-[80px] sm:max-w-[120px] text-white">
                 {currentSheet?.name || 'Sheet'}
               </span>
               <span className="text-[10px] font-mono font-bold bg-indigo-500/30 text-indigo-200 px-1.5 py-0.2 rounded border border-indigo-500/40 shrink-0">
@@ -247,26 +247,8 @@ export const Toolbar: React.FC<Props> = ({
               </div>
             )}
 
-            {/* Cloud Save Status Pill or Viewer Badge */}
-            {isReadOnly ? (
-              <div className="flex items-center gap-1 sm:gap-1.5">
-                <span
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-300 text-xs font-semibold"
-                  title="Anda membuka proyek ini dalam mode Pelihat (Hanya Baca). Duplikasi untuk mengedit."
-                >
-                  <Eye size={12} className="text-amber-400" />
-                  <span>Pelihat</span>
-                </span>
-                <button
-                  onClick={handleDuplicate}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all hover:scale-[1.02]"
-                  title="Duplikasi file proyek ini ke akun Anda untuk mulai mengedit"
-                >
-                  <Copy size={12} />
-                  <span className="hidden sm:inline">Duplikasi</span>
-                </button>
-              </div>
-            ) : (
+            {/* Cloud Save Status Pill (Only for editable mode) */}
+            {!isReadOnly && (
               <button
                 onClick={handleSaveToCloud}
                 disabled={saveStatus === 'saving'}
@@ -511,14 +493,23 @@ export const Toolbar: React.FC<Props> = ({
               <span className="hidden xs:inline">Tabel</span>
             </button>
           ) : (
-            <button
-              onClick={handleDuplicate}
-              className="flex lg:hidden items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
-              title="Duplikasi proyek ini untuk mengedit"
-            >
-              <Copy size={13} />
-              <span className="hidden xs:inline">Duplikasi</span>
-            </button>
+            <div className="flex lg:hidden items-center rounded-lg bg-amber-950/60 border border-amber-500/40 p-0.5 shrink-0">
+              <span
+                className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300"
+                title="Mode Pelihat: Hanya baca skema"
+              >
+                <Eye size={11} className="text-amber-400" />
+                <span className="hidden xs:inline">Pelihat</span>
+              </span>
+              <button
+                onClick={handleDuplicate}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                title="Duplikasi proyek ini ke akun Anda untuk mulai mengedit"
+              >
+                <Copy size={10} />
+                <span>Duplikasi</span>
+              </button>
+            </div>
           )}
 
           {/* Live Multiplayer Collaborators Stack */}
@@ -550,7 +541,7 @@ export const Toolbar: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Share / Kolaborasi Button - ONLY VISIBLE TO OWNER */}
+          {/* Share / Role Indicator */}
           {isOwner ? (
             <button
               onClick={handleShareClick}
@@ -565,25 +556,15 @@ export const Toolbar: React.FC<Props> = ({
                 </span>
               )}
             </button>
-          ) : (
+          ) : currentUserRole === 'editor' ? (
             <div
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border shrink-0 ${
-                currentUserRole === 'editor'
-                  ? 'bg-indigo-950/60 border-indigo-500/40 text-indigo-300'
-                  : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
-              }`}
-              title={
-                currentUserRole === 'editor'
-                  ? 'Anda memiliki hak akses Editor'
-                  : 'Anda memiliki hak akses Pelihat (Hanya Baca)'
-              }
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border shrink-0 bg-indigo-950/60 border-indigo-500/40 text-indigo-300"
+              title="Anda memiliki hak akses Editor"
             >
-              {currentUserRole === 'editor' ? <Pencil size={12} /> : <Eye size={12} />}
-              <span className="hidden xs:inline">
-                {currentUserRole === 'editor' ? 'Editor' : 'Pelihat'}
-              </span>
+              <Pencil size={12} />
+              <span className="hidden xs:inline">Editor</span>
             </div>
-          )}
+          ) : null}
 
           {/* Reset button (Desktop only) */}
           <button

@@ -53,7 +53,6 @@ export const App: React.FC = () => {
   const authLoading = useAuthStore((s) => s.loading);
   const isSelectMode = useDiagramStore((s) => s.isSelectMode);
   const isReadOnly = useCollaborationStore(selectIsReadOnly);
-  const projectOwnerInfo = useCollaborationStore((s) => s.projectOwnerInfo);
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -316,36 +315,6 @@ export const App: React.FC = () => {
               <div className="text-xs text-slate-500">
                 Menghubungkan ke cloud & sinkronisasi kanvas
               </div>
-            </div>
-          )}
-
-          {/* Viewer Mode Banner */}
-          {isReadOnly && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-[#0d1117]/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-full px-4 py-1.5 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md text-xs animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center gap-1.5 text-sky-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                <span>Mode Pelihat (Viewer)</span>
-              </div>
-              <span className="text-slate-700 hidden sm:inline">|</span>
-              <span className="text-slate-400 text-[11px] hidden md:inline">
-                Proyek milik <strong className="text-slate-200">{projectOwnerInfo?.name || 'Pemilik'}</strong> · Hanya membaca skema
-              </span>
-              <button
-                onClick={async () => {
-                  if (!user) {
-                    setIsAuthOpen(true);
-                    return;
-                  }
-                  const newId = await useDiagramStore.getState().duplicateProjectAsNew(user);
-                  if (newId) {
-                    useCollaborationStore.getState().initSession(newId, user);
-                    showToast('✨ Proyek berhasil diduplikasi ke akun Anda! Sekarang Anda bisa mengeditnya.');
-                  }
-                }}
-                className="px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] shadow-md shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-              >
-                Duplikasi Proyek
-              </button>
             </div>
           )}
 
