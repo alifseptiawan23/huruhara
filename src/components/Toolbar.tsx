@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useCollaborationStore, selectIsReadOnly } from '../store/useCollaborationStore';
 import { supabase } from '../lib/supabase';
 import { EditProjectNameModal } from './EditProjectNameModal';
+import { SheetManagerModal } from './SheetManagerModal';
 import {
   Plus,
   Upload,
@@ -35,6 +36,7 @@ import {
   Eye,
   Crown,
   Layers,
+  ChevronDown,
 } from 'lucide-react';
 
 interface Props {
@@ -90,6 +92,7 @@ export const Toolbar: React.FC<Props> = ({
   const { collaborators, startSharing } = useCollaborationStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isSheetManagerOpen, setIsSheetManagerOpen] = useState(false);
 
   const handleSaveProjectName = async (newTitle: string) => {
     if (!isOwner) {
@@ -205,6 +208,22 @@ export const Toolbar: React.FC<Props> = ({
             >
               <span className="truncate">{diagramTitle}</span>
               {isOwner && <Pencil size={11} className="text-slate-400 group-hover:text-indigo-400 shrink-0 transition-colors" />}
+            </button>
+
+            {/* Sheet Viewer / Navigator Button (Prominent at TOP for mobile & desktop) */}
+            <button
+              onClick={() => setIsSheetManagerOpen(true)}
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/90 border border-indigo-500/50 hover:border-indigo-400 text-indigo-200 hover:text-white text-xs font-semibold shadow-sm transition-all cursor-pointer active:scale-95 shrink-0"
+              title="Lihat & Kelola Seluruh Sheet di Proyek Ini (Sheet Viewer)"
+            >
+              <Layers size={13} className="text-indigo-400 shrink-0" />
+              <span className="truncate max-w-[65px] xs:max-w-[95px] sm:max-w-[130px] text-white">
+                {currentSheet?.name || 'Sheet'}
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-indigo-500/30 text-indigo-200 px-1.5 py-0.2 rounded border border-indigo-500/40 shrink-0">
+                {sheets.length}
+              </span>
+              <ChevronDown size={11} className="text-indigo-400 shrink-0" />
             </button>
 
             {/* Creator / Owner Tag */}
@@ -677,16 +696,28 @@ export const Toolbar: React.FC<Props> = ({
                   <Layers size={14} className="text-indigo-400" />
                   <span>Sheet Skema ({sheets.length})</span>
                 </div>
-                <button
-                  onClick={() => {
-                    addSheet();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-[11px] font-semibold text-indigo-200 hover:text-white transition-colors"
-                >
-                  <Plus size={12} />
-                  <span>Sheet Baru</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setIsSheetManagerOpen(true);
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-slate-200 transition-colors"
+                    title="Lihat & kelola semua sheet"
+                  >
+                    <span>Lihat Semua</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      addSheet();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-[11px] font-semibold text-indigo-200 hover:text-white transition-colors"
+                  >
+                    <Plus size={12} />
+                    <span>Sheet Baru</span>
+                  </button>
+                </div>
               </div>
               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                 {sheets.map((sh) => {
@@ -948,6 +979,11 @@ export const Toolbar: React.FC<Props> = ({
         onClose={() => setIsRenameOpen(false)}
         currentTitle={diagramTitle}
         onSave={handleSaveProjectName}
+      />
+      {/* Sheet Manager Modal (Available on mobile & desktop from top header) */}
+      <SheetManagerModal
+        isOpen={isSheetManagerOpen}
+        onClose={() => setIsSheetManagerOpen(false)}
       />
     </>
   );
